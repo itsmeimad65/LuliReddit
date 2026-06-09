@@ -1,9 +1,13 @@
+import 'dart:io';
+import 'dart:ui' show lerpDouble;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/widgets/glass_surface.dart';
 import '../auth/auth_controller.dart';
 import '../explore/explore_screen.dart';
 import '../feed/post_list_view.dart';
@@ -32,6 +36,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 
   Future<void> _maybeCheckUpdates() async {
+    if (!Platform.isAndroid) return; // GitHub-APK updates are Android-only
     if (!ref.read(settingsControllerProvider).checkUpdates) return;
     final info = await UpdateChecker().check();
     if (info == null || !mounted) return;
@@ -105,9 +110,10 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 }
 
-/// "Pop" floating pill navigation: a detached, fully-rounded bar that hovers
-/// above the content with a soft shadow and an animated selected pill.
-class _FloatingNav extends StatelessWidget {
+/// "Pop" floating pill navigation. On iOS the selection indicator is a single
+/// Liquid-Glass capsule that fluidly slides + stretches between tabs (the
+/// Apple-Music "drag" effect); on Android it's the standard Material pill.
+class _FloatingNav extends StatefulWidget {
   const _FloatingNav({
     required this.selectedIndex,
     required this.unread,
@@ -117,6 +123,12 @@ class _FloatingNav extends StatelessWidget {
   final int unread;
   final ValueChanged<int> onSelected;
 
+  @override
+  State<_FloatingNav> createState() => _FloatingNavState();
+}
+
+class _FloatingNavState extends State<_FloatingNav>
+    with SingleTickerProviderStateMixin {
   static const _items = [
     (Icons.home_outlined, Icons.home_rounded, 'Posts'),
     (Icons.explore_outlined, Icons.explore_rounded, 'Explore'),
@@ -124,37 +136,234 @@ class _FloatingNav extends StatelessWidget {
     (Icons.account_circle_outlined, Icons.account_circle_rounded, 'Account'),
   ];
 
+  late final AnimationController _c;
+  double _from = 0;
+  double _to = 0;
+  // While the user holds & slides their thumb across the bar, the capsule
+  // follows the finger (fractional index); null = not dragging.
+  double? _drag;
+  bool _fromDrag = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _from = _to = widget.selectedIndex.toDouble();
+    _c = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 200));
+  }
+
+  @override
+  void didUpdateWidget(_FloatingNav old) {
+    super.didUpdateWidget(old);
+    if (_fromDrag) {
+      _fromDrag = false; // drag already ran its own snap animation
+      return;
+    }
+    if (old.selectedIndex != widget.selectedIndex) {
+      _from = _displayed; // smooth interrupt mid-flight
+      _to = widget.selectedIndex.toDouble();
+      _c.forward(from: 0);
+    }
+  }
+
+  double get _displayed =>
+      lerpDouble(_from, _to, Curves.easeOutCubic.transform(_c.value))!;
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    const radius = BorderRadius.all(Radius.circular(40));
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
-        child: Material(
-          color: cs.surfaceContainerHigh,
-          elevation: 6,
-          shadowColor: Colors.black.withValues(alpha: 0.25),
-          shape: const StadiumBorder(),
-          child: SizedBox(
-            height: 70,
-            child: Row(
-              children: [
-                for (var i = 0; i < _items.length; i++)
-                  Expanded(
-                    child: _NavItem(
-                      iconOff: _items[i].$1,
-                      iconOn: _items[i].$2,
-                      label: _items[i].$3,
-                      selected: selectedIndex == i,
-                      badge: i == 2 ? unread : 0,
-                      onTap: () => onSelected(i),
-                    ),
-                  ),
-              ],
+        padding: EdgeInsets.fromLTRB(18, 0, 18, useLiquidGlass ? 0 : 16),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.22),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: GlassSurface(
+            borderRadius: radius,
+            child: SizedBox(
+              height: 70,
+              child: useLiquidGlass ? _glass(context) : _material(context),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  // Android: standard Material pills.
+  Widget _material(BuildContext context) => Row(
+        children: [
+          for (var i = 0; i < _items.length; i++)
+            Expanded(
+              child: _NavItem(
+                iconOff: _items[i].$1,
+                iconOn: _items[i].$2,
+                label: _items[i].$3,
+                selected: widget.selectedIndex == i,
+                badge: i == 2 ? widget.unread : 0,
+                onTap: () => widget.onSelected(i),
+              ),
+            ),
+        ],
+      );
+
+  // iOS: a single sliding/stretching glass capsule behind the items.
+  Widget _glass(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return LayoutBuilder(
+      builder: (context, bc) {
+        final w = bc.maxWidth;
+        final n = _items.length;
+        final iw = w / n;
+        final capBase = iw - 14;
+
+        // Finger x → fractional tab index (capsule centre follows the thumb).
+        double idxFromX(double x) =>
+            ((x - iw / 2) / iw).clamp(0.0, (n - 1).toDouble());
+
+        void onDown(double x) => setState(() => _drag = idxFromX(x));
+        void onMove(double x) => setState(() => _drag = idxFromX(x));
+        void onUp() {
+          final idx = (_drag ?? widget.selectedIndex.toDouble())
+              .round()
+              .clamp(0, n - 1);
+          _from = _drag ?? idx.toDouble();
+          _to = idx.toDouble();
+          _drag = null;
+          _fromDrag = true;
+          _c.forward(from: 0);
+          widget.onSelected(idx);
+        }
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragStart: (d) => onDown(d.localPosition.dx),
+          onHorizontalDragUpdate: (d) => onMove(d.localPosition.dx),
+          onHorizontalDragEnd: (_) => onUp(),
+          onHorizontalDragCancel: () => setState(() => _drag = null),
+          child: AnimatedBuilder(
+            animation: _c,
+            builder: (context, _) {
+              double leftAt(double idx) => idx * iw + (iw - capBase) / 2;
+              double left, width;
+              if (_drag != null) {
+                // Interactive: capsule sits under the finger, base width.
+                width = capBase;
+                left = leftAt(_drag!);
+              } else {
+                final fromL = leftAt(_from), toL = leftAt(_to);
+                final fromR = fromL + capBase, toR = toL + capBase;
+                final t = _c.value;
+                final lead = Curves.easeOutQuart.transform(t);
+                final trail = Curves.easeInQuart.transform(t);
+                final movingRight = _to >= _from;
+                final leftEdge =
+                    lerpDouble(fromL, toL, movingRight ? trail : lead)!;
+                final rightEdge =
+                    lerpDouble(fromR, toR, movingRight ? lead : trail)!;
+                left = leftEdge;
+                width = (rightEdge - leftEdge).clamp(capBase, w);
+              }
+              left = left.clamp(4.0, w - 4 - width);
+              final active =
+                  (_drag != null ? _drag!.round() : widget.selectedIndex)
+                      .clamp(0, n - 1);
+              final dragging = _drag != null;
+              return Stack(
+                children: [
+                  AnimatedPositioned(
+                    duration: dragging
+                        ? const Duration(milliseconds: 90)
+                        : Duration.zero,
+                    curve: Curves.easeOut,
+                    top: 8,
+                    bottom: 8,
+                    left: left,
+                    width: width,
+                    // Lift & grow while held, like iOS.
+                    child: AnimatedScale(
+                      scale: dragging ? 1.09 : 1.0,
+                      duration: const Duration(milliseconds: 170),
+                      curve: Curves.easeOut,
+                      child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 170),
+                      curve: Curves.easeOut,
+                      decoration: BoxDecoration(
+                        color: dark
+                            ? Colors.white.withValues(alpha: 0.14)
+                            : Colors.white.withValues(alpha: 0.42),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                            color: Colors.white
+                                .withValues(alpha: dark ? 0.12 : 0.5),
+                            width: 0.5),
+                        boxShadow: dragging
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black
+                                      .withValues(alpha: dark ? 0.45 : 0.28),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 7),
+                                ),
+                              ]
+                            : const [],
+                      ),
+                    ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      for (var i = 0; i < n; i++)
+                        Expanded(child: _glassItem(context, i, cs, active)),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _glassItem(
+      BuildContext context, int i, ColorScheme cs, int activeIndex) {
+    final selected = activeIndex == i;
+    final color = selected ? cs.primary : cs.onSurfaceVariant;
+    Widget icon =
+        Icon(selected ? _items[i].$2 : _items[i].$1, size: 24, color: color);
+    final unread = i == 2 ? widget.unread : 0;
+    if (unread > 0) {
+      icon = Badge(label: Text(unread > 99 ? '99+' : '$unread'), child: icon);
+    }
+    return InkWell(
+      onTap: () => widget.onSelected(i),
+      borderRadius: BorderRadius.circular(999),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          icon,
+          const SizedBox(height: 3),
+          Text(_items[i].$3,
+              style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+        ],
       ),
     );
   }
@@ -179,14 +388,59 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    Widget icon = Icon(
-      selected ? iconOn : iconOff,
-      size: 24,
-      color: selected ? cs.onSecondaryContainer : cs.onSurfaceVariant,
-    );
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final glass = useLiquidGlass;
+
+    // Apple Music: selected content is tinted with the accent; the capsule is a
+    // subtle translucent glass highlight (NOT an opaque white block).
+    final contentColor = selected
+        ? (glass ? cs.primary : cs.onSecondaryContainer)
+        : cs.onSurfaceVariant;
+
+    Widget iconW = Icon(selected ? iconOn : iconOff, size: 24, color: contentColor);
     if (badge > 0) {
-      icon = Badge(label: Text(badge > 99 ? '99+' : '$badge'), child: icon);
+      iconW = Badge(label: Text(badge > 99 ? '99+' : '$badge'), child: iconW);
     }
+    final labelW = Text(
+      label,
+      style: TextStyle(
+          fontSize: 11, fontWeight: FontWeight.w600, color: contentColor),
+    );
+
+    if (glass) {
+      // Selection capsule wraps the WHOLE item (icon + label), as a soft
+      // translucent glass highlight.
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          decoration: BoxDecoration(
+            color: selected
+                ? (dark
+                    ? Colors.white.withValues(alpha: 0.14)
+                    : Colors.white.withValues(alpha: 0.42))
+                : Colors.transparent,
+            // Full capsule, echoing the tab bar's rounded shape (not a squircle).
+            borderRadius: BorderRadius.circular(999),
+            border: selected
+                ? Border.all(
+                    color: Colors.white.withValues(alpha: dark ? 0.12 : 0.5),
+                    width: 0.5)
+                : null,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [iconW, const SizedBox(height: 3), labelW],
+          ),
+        ),
+      );
+    }
+
+    // Material (Android): pill behind the icon, label below.
     return InkWell(
       onTap: onTap,
       customBorder: const StadiumBorder(),
@@ -203,17 +457,10 @@ class _NavItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
             alignment: Alignment.center,
-            child: icon,
+            child: iconW,
           ),
           const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: selected ? cs.onSurface : cs.onSurfaceVariant,
-            ),
-          ),
+          labelW,
         ],
       ),
     );
@@ -276,8 +523,7 @@ class _FrontpageTab extends ConsumerWidget {
           child: Row(
             children: [
               Expanded(
-                child: Material(
-                  color: cs.surfaceContainerHigh,
+                child: GlassSurface(
                   borderRadius: BorderRadius.circular(28),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(28),

@@ -53,7 +53,8 @@ class UserScreen extends ConsumerWidget {
             IconButton(
               tooltip: 'Share',
               icon: const Icon(Icons.share_outlined),
-              onPressed: () => shareUrl('https://reddit.com/user/$username'),
+              onPressed: () =>
+                  shareUrl(context, 'https://reddit.com/user/$username'),
             ),
           ],
         ),

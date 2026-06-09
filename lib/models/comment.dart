@@ -58,9 +58,15 @@ class Comment with _$Comment {
     final repliesRaw = d['replies'];
     final replies = <Comment>[];
     if (repliesRaw is Map) {
-      final children = (repliesRaw['data']?['children'] as List?) ?? const [];
-      for (final c in children) {
-        replies.add(Comment.fromChild(c as Map<String, dynamic>, depth + 1));
+      final data = repliesRaw['data'];
+      final children = (data is Map ? data['children'] : null);
+      if (children is List) {
+        for (final c in children) {
+          if (c is Map) {
+            replies.add(
+                Comment.fromChild(c.cast<String, dynamic>(), depth + 1));
+          }
+        }
       }
     }
 

@@ -21,7 +21,7 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
             title: const Text('Share'),
             onTap: () {
               Navigator.pop(ctx);
-              shareUrl('https://reddit.com${post.permalink}',
+              shareUrl(context, 'https://reddit.com${post.permalink}',
                   subject: post.title);
             },
           ),

@@ -1,0 +1,57 @@
+LULI FOR REDDIT — Building an iOS IPA for drag & drop sideloading
+=================================================================
+(iOS is personal-use only. Min iOS: 26.0. Real distribution = Android.)
+
+The fastest path is an UNSIGNED .ipa that you drag into a sideloader
+(Sideloadly / AltStore / Feather) — the sideloader signs it with YOUR
+free Apple ID and installs it on your device.
+
+--------------------------------------------------------------------
+1) Build the app + package the unsigned IPA (one-liner)
+--------------------------------------------------------------------
+From the project root (/Users/bennybarak/StudioProjects/luli_for_reddit):
+
+  flutter build ios --release --no-codesign
+  cd build/ios/iphoneos
+  rm -rf Payload Luli.ipa
+  mkdir Payload && cp -R Runner.app ~/Downloads/
+  zip -qr Luli.ipa Payload
+
+Result:  build/ios/iphoneos/Luli.ipa   <-- drag this into your sideloader
+
+(That IPA is unsigned on purpose. Sideloadly/AltStore re-sign it on install.)
+
+--------------------------------------------------------------------
+2) Install it (pick one)
+--------------------------------------------------------------------
+• Sideloadly (https://sideloadly.io): open it, plug in the iPhone,
+  drag Luli.ipa in, enter your Apple ID, click Start.
+• AltStore: AltServer running on the Mac → drag/import Luli.ipa.
+• Feather / ESign (on-device): AirDrop Luli.ipa to the phone, import.
+
+Free Apple ID = the app stops working after 7 days; just re-install.
+Paid Apple Developer account = valid for 1 year.
+
+--------------------------------------------------------------------
+3) Alternative: run straight from Xcode (no IPA needed)
+--------------------------------------------------------------------
+  open ios/Runner.xcworkspace
+  - Select the "Runner" target → Signing & Capabilities
+  - Check "Automatically manage signing", pick your Team (Apple ID)
+  - Plug in the iPhone, choose it as the run destination, press ▶
+  or from terminal:  flutter run --release
+
+--------------------------------------------------------------------
+4) Properly signed IPA (if you have a Developer account)
+--------------------------------------------------------------------
+  flutter build ipa
+  # output: build/ios/ipa/*.ipa   (uses your Xcode signing settings)
+  # or open build/ios/archive/Runner.xcarchive in Xcode → Distribute App.
+
+Notes
+-----
+• First login: paste your Reddit Client ID + redirect (luli://oauth) on the
+  login screen — same as Android. OAuth works on iOS via the luli:// scheme.
+• iOS-only differences: opening reddit.com web links in the app is Android-only
+  (iOS universal links require owning reddit.com); the in-app APK updater is
+  Android-only. UI uses Liquid Glass chrome on iOS.

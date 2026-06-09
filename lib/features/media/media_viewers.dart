@@ -1,5 +1,8 @@
+import 'dart:io' show Platform;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:chewie/chewie.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:photo_view/photo_view.dart';
@@ -9,6 +12,27 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/share.dart';
 import '../../models/post.dart';
+
+/// A left-edge swipe-to-go-back strip (iOS-style), safe to overlay on viewers
+/// without stealing PhotoView pan / gallery paging (only the left 24px).
+class _EdgeBack extends StatelessWidget {
+  const _EdgeBack();
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 26,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: (d) {
+          if ((d.primaryVelocity ?? 0) > 80) Navigator.of(context).maybePop();
+        },
+      ),
+    );
+  }
+}
 
 /// A transparent, fade-in route so the viewer feels like an overlay above the
 /// content rather than a separate page.
@@ -68,7 +92,9 @@ class _ViewerControls extends StatelessWidget {
           child: Row(
             children: [
               _RoundBtn(
-                icon: Icons.close_rounded,
+                icon: Platform.isIOS
+                    ? CupertinoIcons.xmark
+                    : Icons.close_rounded,
                 onTap: () => Navigator.of(context).maybePop(),
               ),
               const SizedBox(width: 4),
@@ -85,12 +111,16 @@ class _ViewerControls extends StatelessWidget {
               ),
               if (sourceUrl != null) ...[
                 _RoundBtn(
-                  icon: Icons.share_outlined,
-                  onTap: () => shareUrl(sourceUrl!),
+                  icon: Platform.isIOS
+                      ? CupertinoIcons.share
+                      : Icons.ios_share,
+                  onTap: () => shareUrl(context, sourceUrl!),
                 ),
                 const SizedBox(width: 4),
                 _RoundBtn(
-                  icon: Icons.open_in_new_rounded,
+                  icon: Platform.isIOS
+                      ? CupertinoIcons.arrow_up_right_square
+                      : Icons.open_in_new_rounded,
                   onTap: () => launchUrl(Uri.parse(sourceUrl!),
                       mode: LaunchMode.externalApplication),
                 ),
@@ -110,13 +140,25 @@ class _RoundBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black.withValues(alpha: 0.4),
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: IconButton(
-        onPressed: onTap,
-        icon: Icon(icon, color: Colors.white),
+    // A solid, always-legible scrim circle. (A BackdropFilter blur on a tiny
+    // circle renders unreliably over media, so we keep this simple and crisp.)
+    // Clean iOS/Stories style: a white glyph with a soft shadow over the top
+    // scrim. Uses GestureDetector (not IconButton) because the media Stack has
+    // no Material ancestor, which would make IconButton taps silently no-op.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Center(
+          child: Icon(
+            icon,
+            color: Colors.white,
+            size: 26,
+            shadows: const [Shadow(color: Colors.black54, blurRadius: 6)],
+          ),
+        ),
       ),
     );
   }
@@ -202,6 +244,7 @@ class _ImageViewerState extends State<_ImageViewer> with _ImmersiveDismiss {
             child:
                 _ViewerControls(title: widget.title, sourceUrl: widget.url),
           ),
+          const _EdgeBack(),
         ],
       ),
     );
@@ -272,6 +315,7 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
               sourceUrl: widget.images[_index].url,
             ),
           ),
+          const _EdgeBack(),
         ],
       ),
     );
@@ -342,6 +386,7 @@ class _VideoViewerState extends State<_VideoViewer> {
                     : Chewie(controller: _chewie!),
           ),
           _ViewerControls(title: widget.title, sourceUrl: widget.url),
+          const _EdgeBack(),
         ],
       ),
     );

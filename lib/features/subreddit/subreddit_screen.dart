@@ -39,7 +39,7 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
           IconButton(
             icon: const Icon(Icons.share_outlined),
             onPressed: () =>
-                shareUrl('https://reddit.com/r/${widget.name}'),
+                shareUrl(context, 'https://reddit.com/r/${widget.name}'),
           ),
         ],
       ),

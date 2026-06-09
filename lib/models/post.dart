@@ -60,8 +60,8 @@ class Post with _$Post {
   factory Post.fromData(Map<String, dynamic> d) {
     final preview = _firstPreviewImage(d);
     final isVideo = d['is_video'] == true;
-    final media = d['media'] as Map<String, dynamic>?;
-    final redditVideo = media?['reddit_video'] as Map<String, dynamic>?;
+    final media = _m(d['media']);
+    final redditVideo = _m(media?['reddit_video']);
     final gallery = _parseGallery(d);
 
     return Post(
@@ -111,18 +111,24 @@ class Post with _$Post {
       previewUrl != null || gallery.isNotEmpty || type == PostType.video;
 }
 
+/// Safe casts for Reddit's polymorphic fields (a value can be a Map, "", false,
+/// or null depending on the post — never assume).
+Map<String, dynamic>? _m(dynamic v) => v is Map<String, dynamic>
+    ? v
+    : (v is Map ? Map<String, dynamic>.from(v) : null);
+List<dynamic>? _l(dynamic v) => v is List ? v : null;
+
 String? _crosspostFrom(Map<String, dynamic> d) {
-  final list = d['crosspost_parent_list'] as List?;
+  final list = _l(d['crosspost_parent_list']);
   if (list == null || list.isEmpty) return null;
-  return (list.first as Map)['subreddit'] as String?;
+  return _m(list.first)?['subreddit'] as String?;
 }
 
 List<String> _pollOptions(Map<String, dynamic> d) {
-  final poll = d['poll_data'] as Map<String, dynamic>?;
-  final opts = poll?['options'] as List?;
+  final opts = _l(_m(d['poll_data'])?['options']);
   if (opts == null) return const [];
   return [
-    for (final o in opts) (o as Map)['text'] as String? ?? '',
+    for (final o in opts) _m(o)?['text'] as String? ?? '',
   ]..removeWhere((e) => e.isEmpty);
 }
 
@@ -154,10 +160,9 @@ String? _validThumb(String? thumb) {
 
 ({String url, int? width, int? height})? _firstPreviewImage(
     Map<String, dynamic> d) {
-  final preview = d['preview'] as Map<String, dynamic>?;
-  final images = preview?['images'] as List?;
+  final images = _l(_m(d['preview'])?['images']);
   if (images == null || images.isEmpty) return null;
-  final source = (images.first as Map)['source'] as Map<String, dynamic>?;
+  final source = _m(_m(images.first)?['source']);
   final src = source?['url'] as String?;
   if (src == null) return null;
   return (
@@ -168,16 +173,15 @@ String? _validThumb(String? thumb) {
 }
 
 List<GalleryImage> _parseGallery(Map<String, dynamic> d) {
-  final galleryData = d['gallery_data'] as Map<String, dynamic>?;
-  final metadata = d['media_metadata'] as Map<String, dynamic>?;
+  final galleryData = _m(d['gallery_data']);
+  final metadata = _m(d['media_metadata']);
   if (galleryData == null || metadata == null) return const [];
-  final items = galleryData['items'] as List? ?? [];
+  final items = _l(galleryData['items']) ?? const [];
   final result = <GalleryImage>[];
   for (final item in items) {
-    final mediaId = (item as Map)['media_id'] as String?;
+    final mediaId = _m(item)?['media_id'] as String?;
     if (mediaId == null) continue;
-    final meta = metadata[mediaId] as Map<String, dynamic>?;
-    final s = meta?['s'] as Map<String, dynamic>?;
+    final s = _m(_m(metadata[mediaId])?['s']);
     final url = (s?['u'] ?? s?['gif']) as String?;
     if (url == null) continue;
     result.add(GalleryImage(

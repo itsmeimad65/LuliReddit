@@ -43,8 +43,8 @@ const commentSortLabels = {
 };
 
 class CommentsController extends FamilyAsyncNotifier<PostThread, String> {
-  late final String _subreddit;
-  late final String _postId;
+  String _subreddit = '';
+  String _postId = '';
   String _sort = 'confidence';
   String get sort => _sort;
 

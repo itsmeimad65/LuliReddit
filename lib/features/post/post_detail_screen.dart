@@ -718,7 +718,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           onSelected: (v) {
             switch (v) {
               case 'share':
-                shareUrl('https://reddit.com${widget.comment.permalink}');
+                shareUrl(context, 'https://reddit.com${widget.comment.permalink}');
               case 'edit':
                 widget.onEdit();
               case 'delete':

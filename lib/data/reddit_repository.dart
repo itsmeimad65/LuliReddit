@@ -237,14 +237,15 @@ class RedditRepository {
       query: {'sort': sort, 'limit': 100},
     );
     final body = res.data!;
-    final postData =
-        (((body[0] as Map)['data'] as Map)['children'] as List).first;
-    final post = Post.fromData((postData as Map)['data'] as Map<String, dynamic>);
+    final postChildren =
+        (((body[0] as Map)['data'] as Map)['children'] as List);
+    final post = Post.fromData(
+        ((postChildren.first as Map)['data'] as Map).cast<String, dynamic>());
     final commentChildren =
         ((body[1] as Map)['data'] as Map)['children'] as List;
     final comments = [
       for (final c in commentChildren)
-        Comment.fromChild(c as Map<String, dynamic>, 0)
+        if (c is Map) Comment.fromChild(c.cast<String, dynamic>(), 0)
     ];
     return (post, comments);
   }

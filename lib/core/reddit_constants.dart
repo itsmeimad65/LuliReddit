@@ -53,5 +53,4 @@ class RedditConstants {
     final who = (username == null || username.isEmpty) ? 'anonymous' : username;
     return 'android:com.bennybar.luli_for_reddit:1.0.0 (by /u/$who)';
   }
-
 }
