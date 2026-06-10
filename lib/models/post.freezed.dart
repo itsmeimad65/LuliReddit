@@ -48,6 +48,8 @@ mixin _$Post {
   List<String> get pollOptions => throw _privateConstructorUsedError; // media
   String? get thumbnailUrl => throw _privateConstructorUsedError;
   String? get previewUrl => throw _privateConstructorUsedError;
+  String? get previewMedUrl =>
+      throw _privateConstructorUsedError; // smaller resolution for feed cards
   int? get previewWidth => throw _privateConstructorUsedError;
   int? get previewHeight => throw _privateConstructorUsedError;
   String? get hlsUrl => throw _privateConstructorUsedError;
@@ -97,6 +99,7 @@ abstract class $PostCopyWith<$Res> {
     List<String> pollOptions,
     String? thumbnailUrl,
     String? previewUrl,
+    String? previewMedUrl,
     int? previewWidth,
     int? previewHeight,
     String? hlsUrl,
@@ -150,6 +153,7 @@ class _$PostCopyWithImpl<$Res, $Val extends Post>
     Object? pollOptions = null,
     Object? thumbnailUrl = freezed,
     Object? previewUrl = freezed,
+    Object? previewMedUrl = freezed,
     Object? previewWidth = freezed,
     Object? previewHeight = freezed,
     Object? hlsUrl = freezed,
@@ -275,6 +279,10 @@ class _$PostCopyWithImpl<$Res, $Val extends Post>
                 ? _value.previewUrl
                 : previewUrl // ignore: cast_nullable_to_non_nullable
                       as String?,
+            previewMedUrl: freezed == previewMedUrl
+                ? _value.previewMedUrl
+                : previewMedUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
             previewWidth: freezed == previewWidth
                 ? _value.previewWidth
                 : previewWidth // ignore: cast_nullable_to_non_nullable
@@ -343,6 +351,7 @@ abstract class _$$PostImplCopyWith<$Res> implements $PostCopyWith<$Res> {
     List<String> pollOptions,
     String? thumbnailUrl,
     String? previewUrl,
+    String? previewMedUrl,
     int? previewWidth,
     int? previewHeight,
     String? hlsUrl,
@@ -393,6 +402,7 @@ class __$$PostImplCopyWithImpl<$Res>
     Object? pollOptions = null,
     Object? thumbnailUrl = freezed,
     Object? previewUrl = freezed,
+    Object? previewMedUrl = freezed,
     Object? previewWidth = freezed,
     Object? previewHeight = freezed,
     Object? hlsUrl = freezed,
@@ -518,6 +528,10 @@ class __$$PostImplCopyWithImpl<$Res>
             ? _value.previewUrl
             : previewUrl // ignore: cast_nullable_to_non_nullable
                   as String?,
+        previewMedUrl: freezed == previewMedUrl
+            ? _value.previewMedUrl
+            : previewMedUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
         previewWidth: freezed == previewWidth
             ? _value.previewWidth
             : previewWidth // ignore: cast_nullable_to_non_nullable
@@ -580,6 +594,7 @@ class _$PostImpl extends _Post {
     final List<String> pollOptions = const <String>[],
     this.thumbnailUrl,
     this.previewUrl,
+    this.previewMedUrl,
     this.previewWidth,
     this.previewHeight,
     this.hlsUrl,
@@ -669,6 +684,9 @@ class _$PostImpl extends _Post {
   @override
   final String? previewUrl;
   @override
+  final String? previewMedUrl;
+  // smaller resolution for feed cards
+  @override
   final int? previewWidth;
   @override
   final int? previewHeight;
@@ -691,7 +709,7 @@ class _$PostImpl extends _Post {
 
   @override
   String toString() {
-    return 'Post(id: $id, fullname: $fullname, title: $title, subreddit: $subreddit, subredditPrefixed: $subredditPrefixed, author: $author, score: $score, numComments: $numComments, upvoteRatio: $upvoteRatio, created: $created, permalink: $permalink, url: $url, domain: $domain, type: $type, isSelf: $isSelf, selftext: $selftext, over18: $over18, spoiler: $spoiler, stickied: $stickied, locked: $locked, saved: $saved, canModPost: $canModPost, linkFlairText: $linkFlairText, distinguished: $distinguished, feedReason: $feedReason, crosspostFrom: $crosspostFrom, pollOptions: $pollOptions, thumbnailUrl: $thumbnailUrl, previewUrl: $previewUrl, previewWidth: $previewWidth, previewHeight: $previewHeight, hlsUrl: $hlsUrl, fallbackVideoUrl: $fallbackVideoUrl, gallery: $gallery, likes: $likes)';
+    return 'Post(id: $id, fullname: $fullname, title: $title, subreddit: $subreddit, subredditPrefixed: $subredditPrefixed, author: $author, score: $score, numComments: $numComments, upvoteRatio: $upvoteRatio, created: $created, permalink: $permalink, url: $url, domain: $domain, type: $type, isSelf: $isSelf, selftext: $selftext, over18: $over18, spoiler: $spoiler, stickied: $stickied, locked: $locked, saved: $saved, canModPost: $canModPost, linkFlairText: $linkFlairText, distinguished: $distinguished, feedReason: $feedReason, crosspostFrom: $crosspostFrom, pollOptions: $pollOptions, thumbnailUrl: $thumbnailUrl, previewUrl: $previewUrl, previewMedUrl: $previewMedUrl, previewWidth: $previewWidth, previewHeight: $previewHeight, hlsUrl: $hlsUrl, fallbackVideoUrl: $fallbackVideoUrl, gallery: $gallery, likes: $likes)';
   }
 
   @override
@@ -746,6 +764,8 @@ class _$PostImpl extends _Post {
                 other.thumbnailUrl == thumbnailUrl) &&
             (identical(other.previewUrl, previewUrl) ||
                 other.previewUrl == previewUrl) &&
+            (identical(other.previewMedUrl, previewMedUrl) ||
+                other.previewMedUrl == previewMedUrl) &&
             (identical(other.previewWidth, previewWidth) ||
                 other.previewWidth == previewWidth) &&
             (identical(other.previewHeight, previewHeight) ||
@@ -789,6 +809,7 @@ class _$PostImpl extends _Post {
     const DeepCollectionEquality().hash(_pollOptions),
     thumbnailUrl,
     previewUrl,
+    previewMedUrl,
     previewWidth,
     previewHeight,
     hlsUrl,
@@ -837,6 +858,7 @@ abstract class _Post extends Post {
     final List<String> pollOptions,
     final String? thumbnailUrl,
     final String? previewUrl,
+    final String? previewMedUrl,
     final int? previewWidth,
     final int? previewHeight,
     final String? hlsUrl,
@@ -904,6 +926,8 @@ abstract class _Post extends Post {
   String? get thumbnailUrl;
   @override
   String? get previewUrl;
+  @override
+  String? get previewMedUrl; // smaller resolution for feed cards
   @override
   int? get previewWidth;
   @override

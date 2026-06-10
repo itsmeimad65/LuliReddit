@@ -101,6 +101,7 @@ class _MessageThreadScreenState extends ConsumerState<MessageThreadScreen> {
                         const SizedBox(height: 4),
                         MarkdownBody(
                           data: m.body,
+                          selectable: true,
                           styleSheet: MarkdownStyleSheet(
                               p: Theme.of(context).textTheme.bodyMedium),
                         ),

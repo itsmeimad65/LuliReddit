@@ -15,6 +15,14 @@ final redditClientProvider = Provider<RedditClient>((ref) {
   );
 });
 
-final redditRepositoryProvider = Provider<RedditRepository>(
-  (ref) => RedditRepository(ref.watch(redditClientProvider)),
-);
+final redditRepositoryProvider = Provider<RedditRepository>((ref) {
+  final repo = RedditRepository(ref.watch(redditClientProvider));
+  void apply(Settings s) {
+    repo.subsCacheEnabled = s.subsCacheEnabled;
+    repo.subsCacheTtl = Duration(minutes: s.subsCacheMinutes);
+  }
+
+  apply(ref.read(settingsControllerProvider));
+  ref.listen(settingsControllerProvider, (_, s) => apply(s));
+  return repo;
+});

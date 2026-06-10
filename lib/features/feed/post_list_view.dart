@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/error_view.dart';
 import '../../data/reddit_repository.dart';
+import '../history/history_store.dart';
 import '../settings/settings_controller.dart';
 import 'feed_controller.dart';
 import 'post_card.dart';
@@ -74,7 +75,17 @@ class _PostListViewState extends ConsumerState<PostListView> {
           ],
         ),
         data: (state) {
-          final itemCount = 1 + state.posts.length + 1; // sortbar + posts + footer
+          final settings = ref.watch(settingsControllerProvider);
+          var posts = state.posts;
+          // Auto-hide already-read items in the For You feed (live: rebuilds
+          // when history changes).
+          if (settings.autoHideReadForYou) {
+            final seen = {for (final e in ref.watch(historyControllerProvider)) e.id};
+            posts = posts
+                .where((p) => !(p.feedReason != null && seen.contains(p.id)))
+                .toList();
+          }
+          final itemCount = 1 + posts.length + 1; // sortbar + posts + footer
           return ListView.separated(
             controller: _scroll,
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
@@ -92,14 +103,13 @@ class _PostListViewState extends ConsumerState<PostListView> {
                   time: state.time,
                   onPick: notifier.changeSort,
                   isFrontpage: widget.feedKey.isEmpty,
-                  forYou: ref.watch(settingsControllerProvider).forYouFeed &&
-                      widget.feedKey.isEmpty,
+                  forYou: settings.forYouFeed && widget.feedKey.isEmpty,
                   onForYou: notifier.selectForYou,
                 );
               }
               index -= 1;
-              if (index < state.posts.length) {
-                return PostCard(post: state.posts[index]);
+              if (index < posts.length) {
+                return PostCard(post: posts[index]);
               }
               // footer
               return Padding(

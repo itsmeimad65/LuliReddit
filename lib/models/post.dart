@@ -47,6 +47,7 @@ class Post with _$Post {
     // media
     String? thumbnailUrl,
     String? previewUrl,
+    String? previewMedUrl, // smaller resolution for feed cards
     int? previewWidth,
     int? previewHeight,
     String? hlsUrl,
@@ -98,6 +99,7 @@ class Post with _$Post {
       pollOptions: _pollOptions(d),
       thumbnailUrl: _validThumb(d['thumbnail'] as String?),
       previewUrl: preview?.url,
+      previewMedUrl: _medPreviewUrl(d) ?? preview?.url,
       previewWidth: preview?.width,
       previewHeight: preview?.height,
       hlsUrl: redditVideo?['hls_url'] as String?,
@@ -170,6 +172,22 @@ String? _validThumb(String? thumb) {
     width: (source?['width'] as num?)?.toInt(),
     height: (source?['height'] as num?)?.toInt(),
   );
+}
+
+/// A mid-resolution preview (~the smallest >= 640px wide, else the largest
+/// available) for faster feed cards. Reddit's `resolutions` are ascending.
+String? _medPreviewUrl(Map<String, dynamic> d) {
+  final images = _l(_m(d['preview'])?['images']);
+  if (images == null || images.isEmpty) return null;
+  final res = _l(_m(images.first)?['resolutions']);
+  if (res == null || res.isEmpty) return null;
+  for (final r in res) {
+    final m = _m(r);
+    final w = (m?['width'] as num?)?.toInt() ?? 0;
+    final u = m?['url'] as String?;
+    if (u != null && w >= 640) return u;
+  }
+  return _m(res.last)?['url'] as String?;
 }
 
 List<GalleryImage> _parseGallery(Map<String, dynamic> d) {

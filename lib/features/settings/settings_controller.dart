@@ -40,6 +40,10 @@ class Settings {
     required this.offlineCache,
     required this.checkUpdates,
     required this.forYouFeed,
+    required this.autoHideReadForYou,
+    required this.midResThumbnails,
+    required this.subsCacheEnabled,
+    required this.subsCacheMinutes,
   });
 
   final ThemeMode themeMode;
@@ -54,6 +58,10 @@ class Settings {
   final bool offlineCache;
   final bool checkUpdates;
   final bool forYouFeed; // frontpage uses the "For You (Beta)" feed
+  final bool autoHideReadForYou; // hide already-read items in For You
+  final bool midResThumbnails; // load smaller preview images in feeds
+  final bool subsCacheEnabled; // cache subscription list in memory
+  final int subsCacheMinutes; // how long to keep the subs cache
 
   Settings copyWith({
     ThemeMode? themeMode,
@@ -68,6 +76,10 @@ class Settings {
     bool? offlineCache,
     bool? checkUpdates,
     bool? forYouFeed,
+    bool? autoHideReadForYou,
+    bool? midResThumbnails,
+    bool? subsCacheEnabled,
+    int? subsCacheMinutes,
   }) =>
       Settings(
         themeMode: themeMode ?? this.themeMode,
@@ -82,6 +94,10 @@ class Settings {
         offlineCache: offlineCache ?? this.offlineCache,
         checkUpdates: checkUpdates ?? this.checkUpdates,
         forYouFeed: forYouFeed ?? this.forYouFeed,
+        autoHideReadForYou: autoHideReadForYou ?? this.autoHideReadForYou,
+        midResThumbnails: midResThumbnails ?? this.midResThumbnails,
+        subsCacheEnabled: subsCacheEnabled ?? this.subsCacheEnabled,
+        subsCacheMinutes: subsCacheMinutes ?? this.subsCacheMinutes,
       );
 }
 
@@ -107,6 +123,10 @@ class SettingsController extends Notifier<Settings> {
       offlineCache: p.getBool('offlineCache') ?? true,
       checkUpdates: p.getBool('checkUpdates') ?? true,
       forYouFeed: p.getBool('forYouFeed') ?? false,
+      autoHideReadForYou: p.getBool('autoHideReadForYou') ?? false,
+      midResThumbnails: p.getBool('midResThumbnails') ?? true,
+      subsCacheEnabled: p.getBool('subsCacheEnabled') ?? true,
+      subsCacheMinutes: p.getInt('subsCacheMinutes') ?? 10,
     );
   }
 
@@ -168,6 +188,26 @@ class SettingsController extends Notifier<Settings> {
   void setForYouFeed(bool v) {
     _prefs.setBool('forYouFeed', v);
     state = state.copyWith(forYouFeed: v);
+  }
+
+  void setAutoHideReadForYou(bool v) {
+    _prefs.setBool('autoHideReadForYou', v);
+    state = state.copyWith(autoHideReadForYou: v);
+  }
+
+  void setMidResThumbnails(bool v) {
+    _prefs.setBool('midResThumbnails', v);
+    state = state.copyWith(midResThumbnails: v);
+  }
+
+  void setSubsCacheEnabled(bool v) {
+    _prefs.setBool('subsCacheEnabled', v);
+    state = state.copyWith(subsCacheEnabled: v);
+  }
+
+  void setSubsCacheMinutes(int v) {
+    _prefs.setInt('subsCacheMinutes', v);
+    state = state.copyWith(subsCacheMinutes: v);
   }
 }
 

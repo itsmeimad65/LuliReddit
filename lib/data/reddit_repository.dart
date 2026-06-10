@@ -52,6 +52,14 @@ class RedditRepository {
   RedditRepository(this._client);
   final RedditClient _client;
 
+  // Short-lived cache of the subscription list — it's expensive (up to 5
+  // sequential paged requests) and is hit on every "For You" build.
+  // Config is pushed in from settings via redditRepositoryProvider.
+  List<Subreddit>? _subsCache;
+  DateTime? _subsCacheAt;
+  bool subsCacheEnabled = true;
+  Duration subsCacheTtl = const Duration(minutes: 10);
+
   Listing<Post> _parsePostListing(Map<String, dynamic> json) {
     final data = json['data'] as Map<String, dynamic>?;
     final children = (data?['children'] as List?) ?? const [];
@@ -381,7 +389,15 @@ class RedditRepository {
     ];
   }
 
-  Future<List<Subreddit>> getSubscribedSubreddits() async {
+  Future<List<Subreddit>> getSubscribedSubreddits({bool force = false}) async {
+    final cached = _subsCache;
+    if (!force &&
+        subsCacheEnabled &&
+        cached != null &&
+        _subsCacheAt != null &&
+        DateTime.now().difference(_subsCacheAt!) < subsCacheTtl) {
+      return cached;
+    }
     final result = <Subreddit>[];
     String? after;
     // Reddit caps at 100/page; loop a few pages for heavy subscribers.
@@ -405,12 +421,15 @@ class RedditRepository {
       }
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
+    _subsCache = result;
+    _subsCacheAt = DateTime.now();
     return result;
   }
 
   Future<void> setSubredditFavorite(String subredditName, bool favorite) async {
     await _client.post('/api/favorite',
         data: {'sr_name': subredditName, 'make_favorite': '$favorite'});
+    _subsCache = null; // favourite flag changed
   }
 
   // --- Moderation (requires mod permission on the thing's subreddit) ---
@@ -440,6 +459,7 @@ class RedditRepository {
       'action': subscribe ? 'sub' : 'unsub',
       'sr_name': subredditName,
     });
+    _subsCache = null; // subscription set changed
   }
 
   Future<void> setSaved(String fullname, bool saved) async {

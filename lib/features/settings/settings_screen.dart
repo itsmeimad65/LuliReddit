@@ -23,18 +23,31 @@ const _accentSwatches = <Color>[
   Color(0xFFD81B60), // pink
 ];
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('Settings')),
+        body: const SettingsList(),
+      );
+}
+
+/// The settings list — reusable both as the full Settings screen and embedded
+/// (e.g. inside the Account tab). Pass [embedded] when nesting in a scroll view.
+class SettingsList extends ConsumerWidget {
+  const SettingsList({super.key, this.embedded = false});
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsControllerProvider);
     final ctrl = ref.read(settingsControllerProvider.notifier);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        children: [
+    return ListView(
+      shrinkWrap: embedded,
+      physics: embedded ? const NeverScrollableScrollPhysics() : null,
+      children: [
           _section(context, 'Appearance'),
           ListTile(
             leading: const Icon(Icons.brightness_6_rounded),
@@ -126,6 +139,14 @@ class SettingsScreen extends ConsumerWidget {
             onChanged: ctrl.setBlurNsfw,
           ),
           SwitchListTile(
+            secondary: const Icon(Icons.image_outlined),
+            title: const Text('Data-saver thumbnails'),
+            subtitle: const Text(
+                'Load smaller preview images in feeds (faster, less data)'),
+            value: s.midResThumbnails,
+            onChanged: ctrl.setMidResThumbnails,
+          ),
+          SwitchListTile(
             secondary: const Icon(Icons.auto_awesome_rounded),
             title: const Text('"For You" feed (Beta)'),
             subtitle: const Text(
@@ -133,6 +154,13 @@ class SettingsScreen extends ConsumerWidget {
                 'recommendations aren\'t available to third-party apps.'),
             value: s.forYouFeed,
             onChanged: ctrl.setForYouFeed,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.mark_email_read_outlined),
+            title: const Text('Auto-hide read items in "For You"'),
+            subtitle: const Text('Hide posts you\'ve marked/opened as read'),
+            value: s.autoHideReadForYou,
+            onChanged: ctrl.setAutoHideReadForYou,
           ),
           SwitchListTile(
             secondary: const Icon(Icons.swipe_rounded),
@@ -163,6 +191,21 @@ class SettingsScreen extends ConsumerWidget {
                 const Text('Show the last loaded content when offline'),
             value: s.offlineCache,
             onChanged: ctrl.setOfflineCache,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.dns_outlined),
+            title: const Text('Cache subscriptions'),
+            subtitle: const Text(
+                'Keep your subreddit list in memory to speed up "For You"'),
+            value: s.subsCacheEnabled,
+            onChanged: ctrl.setSubsCacheEnabled,
+          ),
+          ListTile(
+            enabled: s.subsCacheEnabled,
+            leading: const Icon(Icons.timer_outlined),
+            title: const Text('Subscriptions cache time'),
+            subtitle: Text('${s.subsCacheMinutes} minutes'),
+            onTap: () => _pickCacheMinutes(context, ctrl, s.subsCacheMinutes),
           ),
           ListTile(
             leading: const Icon(Icons.cached_rounded),
@@ -217,7 +260,6 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
         ],
-      ),
     );
   }
 
@@ -313,6 +355,31 @@ class SettingsScreen extends ConsumerWidget {
                   value: sort,
                   title: Text(sort.label),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _pickCacheMinutes(
+      BuildContext context, SettingsController ctrl, int current) {
+    const options = [5, 10, 30, 60];
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: RadioGroup<int>(
+          groupValue: current,
+          onChanged: (v) {
+            if (v != null) ctrl.setSubsCacheMinutes(v);
+            Navigator.pop(ctx);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final m in options)
+                RadioListTile<int>(value: m, title: Text('$m minutes')),
             ],
           ),
         ),

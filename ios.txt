@@ -1,31 +1,56 @@
-LULI FOR REDDIT — Building an iOS IPA for drag & drop sideloading
-=================================================================
+LULI FOR REDDIT — Building an iOS IPA for personal install
+==========================================================
 (iOS is personal-use only. Min iOS: 26.0. Real distribution = Android.)
+Apple team: free/personal "Uzi Drori" (4M663HCPB9).
 
-The fastest path is an UNSIGNED .ipa that you drag into a sideloader
-(Sideloadly / AltStore / Feather) — the sideloader signs it with YOUR
-free Apple ID and installs it on your device.
+Signing setup (paid Apple Developer Program):
+  Team   : Kenes International Organizers of Congresses  (57L2ULXB7Z)
+  Bundle : com.bennybar.lulireddit   (iOS only; Android stays com.bennybar.luli_for_reddit)
+
+==> AD-HOC SIGNED IPA (1-year, installs via Apple Configurator 2).
 
 --------------------------------------------------------------------
-1) Build the app + package the unsigned IPA (one-liner)
+1) Build the signed IPA (one command)
 --------------------------------------------------------------------
 From the project root (/Users/bennybarak/StudioProjects/luli_for_reddit):
 
+  flutter build ipa --export-method ad-hoc
+  cp build/ios/ipa/*.ipa ~/Downloads/Luli.ipa
+
+Output: build/ios/ipa/luli_for_reddit.ipa  (ad-hoc, Kenes distribution cert,
+valid ~1 year). Drag into Apple Configurator 2 to install — no integrity error.
+
+NOTES:
+ • Ad-hoc installs only on devices REGISTERED to the Kenes team. To add a new
+   device: connect it + run once from Xcode (auto-registers), then rebuild.
+ • For wider/easier distribution use TestFlight:
+     flutter build ipa --export-method app-store   (then upload in Xcode Organizer)
+ • Do NOT run `flutter build ipa` with no flag — it defaults to App Store export
+   and needs an App Store provisioning profile.
+
+--------------------------------------------------------------------
+1b) Alternative: UNSIGNED IPA for a signing sideloader
+--------------------------------------------------------------------
   flutter build ios --release --no-codesign
   cd build/ios/iphoneos
-  rm -rf Payload Luli.ipa
-  mkdir Payload && cp -R Runner.app ~/Downloads/
-  zip -qr Luli.ipa Payload
+  rm -rf Payload Luli.ipa && mkdir Payload && cp -R Runner.app Payload/
+  zip -qr Luli.ipa Payload && mv Luli.ipa ~/Downloads/
 
-Result:  build/ios/iphoneos/Luli.ipa   <-- drag this into your sideloader
-
-(That IPA is unsigned on purpose. Sideloadly/AltStore re-sign it on install.)
+This Luli.ipa is UNSIGNED — install with Sideloadly/AltStore (they sign it).
+Apple Configurator 2 will REJECT an unsigned IPA ("integrity could not be
+verified").
 
 --------------------------------------------------------------------
 2) Install it (pick one)
 --------------------------------------------------------------------
+IMPORTANT: this Luli.ipa is UNSIGNED. It must be installed by a tool that
+SIGNS it with your Apple ID. Apple Configurator 2 does NOT sign — it only
+installs already-signed IPAs, so it will fail with:
+   "this app cannot be installed because its integrity could not be verified"
+Use one of these instead:
+
 • Sideloadly (https://sideloadly.io): open it, plug in the iPhone,
-  drag Luli.ipa in, enter your Apple ID, click Start.
+  drag Luli.ipa in, enter your Apple ID, click Start.   ← recommended
 • AltStore: AltServer running on the Mac → drag/import Luli.ipa.
 • Feather / ESign (on-device): AirDrop Luli.ipa to the phone, import.
 
@@ -42,11 +67,16 @@ Paid Apple Developer account = valid for 1 year.
   or from terminal:  flutter run --release
 
 --------------------------------------------------------------------
-4) Properly signed IPA (if you have a Developer account)
+4) Signed IPA (needed for Apple Configurator 2 / TestFlight)
 --------------------------------------------------------------------
+Configurator needs a SIGNED ipa. Set signing once in Xcode (open
+ios/Runner.xcworkspace → Runner target → Signing & Capabilities → pick your
+Team), then:
   flutter build ipa
-  # output: build/ios/ipa/*.ipa   (uses your Xcode signing settings)
+  # output: build/ios/ipa/*.ipa  — signed; Configurator/Xcode can install it.
   # or open build/ios/archive/Runner.xcarchive in Xcode → Distribute App.
+(With a free Apple ID, option 3 "run from Xcode" is the simplest — it does the
+signing automatically for your plugged-in device.)
 
 Notes
 -----

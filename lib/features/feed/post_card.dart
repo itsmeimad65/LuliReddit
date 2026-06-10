@@ -121,7 +121,7 @@ class _PostCardState extends ConsumerState<PostCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 2, 18, 5),
+            padding: const EdgeInsets.fromLTRB(18, 2, 6, 0),
             child: Row(
               children: [
                 Icon(Icons.auto_awesome_rounded, size: 13, color: cs.primary),
@@ -135,6 +135,34 @@ class _PostCardState extends ConsumerState<PostCard> {
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                         color: cs.primary),
+                  ),
+                ),
+                // Mark-as-read toggle (For You).
+                InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () {
+                    final h = ref.read(historyControllerProvider.notifier);
+                    seen ? h.removeViewed(widget.post.id) : h.markViewed(widget.post);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          seen
+                              ? Icons.check_circle_rounded
+                              : Icons.circle_outlined,
+                          size: 16,
+                          color: seen ? cs.primary : cs.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 4),
+                        Text('Read',
+                            style: TextStyle(
+                                fontSize: 11.5,
+                                color: cs.onSurfaceVariant)),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -375,6 +403,12 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   /// Full-width media constrained to [height] (cover-cropped). Falls back to the
   /// link preview / nothing for non-image posts.
+  /// Feed preview URL, mid-resolution when the data-saver setting is on.
+  String? _cardImg(Post p) =>
+      ref.read(settingsControllerProvider).midResThumbnails
+          ? (p.previewMedUrl ?? p.previewUrl)
+          : p.previewUrl;
+
   Widget _bannerMedia(ColorScheme cs, double height) {
     final p = widget.post;
     if (p.type == PostType.self) return const SizedBox.shrink();
@@ -391,7 +425,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       );
     }
     final url =
-        p.previewUrl ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
+        _cardImg(p) ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: NsfwBlur(
@@ -441,7 +475,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     final p = widget.post;
     if (p.type == PostType.self) return null;
     final url =
-        p.previewUrl ?? (p.gallery.isNotEmpty ? p.gallery.first.url : p.thumbnailUrl);
+        _cardImg(p) ?? (p.gallery.isNotEmpty ? p.gallery.first.url : p.thumbnailUrl);
     final blur = (p.over18 && ref.watch(settingsControllerProvider).blurNsfw) || p.spoiler;
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),

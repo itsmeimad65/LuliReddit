@@ -53,6 +53,11 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
     _persist();
   }
 
+  void removeViewed(String id) {
+    state = state.where((e) => e.id != id).toList();
+    _persist();
+  }
+
   void clear() {
     state = [];
     _persist();

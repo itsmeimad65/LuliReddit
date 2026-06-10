@@ -60,7 +60,7 @@ class ExploreScreen extends ConsumerWidget {
                   child: Text('Explore',
                       style: Theme.of(context)
                           .textTheme
-                          .headlineLarge
+                          .titleLarge
                           ?.copyWith(fontWeight: FontWeight.w800)),
                 ),
               ),

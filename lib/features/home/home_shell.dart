@@ -195,6 +195,9 @@ class _FloatingNavState extends State<_FloatingNav>
           ),
           child: GlassSurface(
             borderRadius: radius,
+            // Nav sits over scrolling content (incl. dark images). Telegram's
+            // tab bar is fully solid — match that so labels are always legible.
+            tintOpacity: 1.0,
             child: SizedBox(
               height: 70,
               child: useLiquidGlass ? _glass(context) : _material(context),
@@ -305,13 +308,11 @@ class _FloatingNavState extends State<_FloatingNav>
                       duration: const Duration(milliseconds: 170),
                       curve: Curves.easeOut,
                       decoration: BoxDecoration(
-                        color: dark
-                            ? Colors.white.withValues(alpha: 0.14)
-                            : Colors.white.withValues(alpha: 0.42),
+                        // Accent-tinted selection pill so it matches the theme.
+                        color: cs.primary.withValues(alpha: dark ? 0.30 : 0.16),
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(
-                            color: Colors.white
-                                .withValues(alpha: dark ? 0.12 : 0.5),
+                            color: cs.primary.withValues(alpha: dark ? 0.35 : 0.22),
                             width: 0.5),
                         boxShadow: dragging
                             ? [
@@ -578,21 +579,28 @@ class _FrontpageTab extends ConsumerWidget {
           child: PostListView(
             feedKey: '',
             header: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(
                     forYou ? 'For You' : 'Frontpage',
                     style: Theme.of(context)
                         .textTheme
-                        .headlineLarge
+                        .titleLarge
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),
-                  if (forYou)
-                    Text('Personalized on-device · Beta',
-                        style: TextStyle(
-                            fontSize: 12.5, color: cs.onSurfaceVariant)),
+                  if (forYou) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('Personalized on-device · Beta',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 12, color: cs.onSurfaceVariant)),
+                    ),
+                  ],
                 ],
               ),
             ),

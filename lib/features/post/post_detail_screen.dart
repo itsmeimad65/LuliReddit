@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -353,6 +354,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
           if (p.isSelf && p.selftext.isNotEmpty)
             MarkdownBody(
               data: p.selftext,
+              selectable: true,
               onTapLink: (_, href, __) {
                 if (href != null) {
                   launchUrl(Uri.parse(href),
@@ -587,9 +589,14 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header (tap to collapse/expand)
+          // Long-press collapses the whole subtree; tap re-expands a collapsed
+          // comment (so a tap can't accidentally collapse an open thread).
           InkWell(
-            onTap: widget.onToggle,
+            onTap: widget.collapsed ? widget.onToggle : null,
+            onLongPress: () {
+              HapticFeedback.selectionClick();
+              widget.onToggle();
+            },
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
@@ -639,6 +646,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
               child: MarkdownBody(
                 data: comment.body,
+                selectable: true,
                 styleSheet: MarkdownStyleSheet(
                   p: Theme.of(context).textTheme.bodyMedium,
                 ),
@@ -702,6 +710,14 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           onTap: widget.onReply,
         ),
         const Spacer(),
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          iconSize: 18,
+          tooltip: 'Collapse thread',
+          onPressed: widget.onToggle,
+          color: cs.onSurfaceVariant,
+          icon: const Icon(Icons.unfold_less_rounded),
+        ),
         IconButton(
           visualDensity: VisualDensity.compact,
           iconSize: 18,

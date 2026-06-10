@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
 import '../auth/auth_controller.dart';
 import '../multireddit/multireddit_providers.dart';
+import '../settings/settings_screen.dart';
 
 class AccountTab extends ConsumerWidget {
   const AccountTab({super.key});
@@ -15,106 +16,103 @@ class AccountTab extends ConsumerWidget {
     final username =
         ref.watch(authControllerProvider).valueOrNull?.username ?? '';
 
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: cs.primaryContainer,
-                  child: Text(
-                    username.isNotEmpty ? username[0].toUpperCase() : '?',
-                    style: TextStyle(
-                        fontSize: 22,
-                        color: cs.onPrimaryContainer,
-                        fontWeight: FontWeight.bold),
-                  ),
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        // Profile header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: cs.primaryContainer,
+                child: Text(
+                  username.isNotEmpty ? username[0].toUpperCase() : '?',
+                  style: TextStyle(
+                      fontSize: 22,
+                      color: cs.onPrimaryContainer,
+                      fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('u/$username',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w700)),
-                      TextButton(
-                        onPressed: () => context.push('/u/$username'),
-                        style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            minimumSize: const Size(0, 0),
-                            tapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap),
-                        child: const Text('View profile'),
-                      ),
-                    ],
-                  ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('u/$username',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700)),
+                    TextButton(
+                      onPressed: () => context.push('/u/$username'),
+                      style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(0, 0),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                      child: const Text('View profile'),
+                    ),
+                  ],
                 ),
-                IconButton.filledTonal(
-                  tooltip: 'Settings',
-                  onPressed: () => context.push('/settings'),
-                  icon: const Icon(Icons.settings_rounded),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  tooltip: 'Log out',
-                  onPressed: () => _confirmLogout(context, ref),
-                  icon: const Icon(Icons.logout_rounded),
-                ),
-              ],
-            ),
+              ),
+              IconButton.filledTonal(
+                tooltip: 'Log out',
+                onPressed: () => _confirmLogout(context, ref),
+                icon: const Icon(Icons.logout_rounded),
+              ),
+            ],
           ),
         ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text('Custom feeds',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700)),
-                ),
-                TextButton.icon(
-                  onPressed: () => _createMulti(context, ref, username),
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('New'),
-                ),
-              ],
-            ),
+
+        // Settings (primary)
+        const SettingsList(embedded: true),
+
+        const Divider(),
+
+        // Custom feeds (secondary)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text('Custom feeds',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(
+                            color: cs.primary, fontWeight: FontWeight.w700)),
+              ),
+              TextButton.icon(
+                onPressed: () => _createMulti(context, ref, username),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('New'),
+              ),
+            ],
           ),
         ),
         ref.watch(myMultiredditsProvider).when(
-              loading: () => const SliverToBoxAdapter(
-                  child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Center(child: CircularProgressIndicator()))),
-              error: (e, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
-              data: (multis) => SliverList.builder(
-                itemCount: multis.length,
-                itemBuilder: (context, i) {
-                  final m = multis[i];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: cs.tertiaryContainer,
-                      foregroundColor: cs.onTertiaryContainer,
-                      child: const Icon(Icons.dynamic_feed_rounded, size: 20),
+              loading: () => const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(child: CircularProgressIndicator())),
+              error: (e, _) => const SizedBox.shrink(),
+              data: (multis) => Column(
+                children: [
+                  for (final m in multis)
+                    ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: cs.tertiaryContainer,
+                        foregroundColor: cs.onTertiaryContainer,
+                        child: const Icon(Icons.dynamic_feed_rounded, size: 20),
+                      ),
+                      title: Text(m.displayName),
+                      subtitle: Text('${m.subreddits.length} subreddits'),
+                      onTap: () => context.push('/m/$username/${m.name}'),
                     ),
-                    title: Text(m.displayName),
-                    subtitle: Text('${m.subreddits.length} subreddits'),
-                    onTap: () => context.push('/m/$username/${m.name}'),
-                  );
-                },
+                ],
               ),
             ),
-        const SliverToBoxAdapter(child: SizedBox(height: 130)),
+        const SizedBox(height: 130),
       ],
     );
   }
