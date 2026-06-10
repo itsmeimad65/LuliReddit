@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Thin wrapper around [FlutterSecureStorage] holding everything sensitive:
@@ -63,6 +65,52 @@ class SecureStore {
   }
 
   Future<void> saveUsername(String? username) => _write(_kUsername, username);
+
+  // --- Multi-account ---
+  // We persist a map of {username: refreshToken}. The "active slot" keys above
+  // (access/refresh/expiry/username) mirror whichever account is current; the
+  // access token is ephemeral and re-derived from the refresh token on demand.
+  static const _kAccounts = 'accounts_json';
+
+  Future<Map<String, String>> _accountsMap() async {
+    final raw = await read(_kAccounts);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final m = jsonDecode(raw) as Map;
+      return m.map((k, v) => MapEntry(k.toString(), v.toString()));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<List<String>> get accounts async => (await _accountsMap()).keys.toList();
+
+  Future<void> upsertAccount(String username, String refreshToken) async {
+    final m = await _accountsMap();
+    m[username] = refreshToken;
+    await _write(_kAccounts, jsonEncode(m));
+  }
+
+  Future<void> removeAccountEntry(String username) async {
+    final m = await _accountsMap();
+    m.remove(username);
+    await _write(_kAccounts, jsonEncode(m));
+  }
+
+  Future<void> clearAccounts() => _storage.delete(key: _kAccounts);
+
+  /// Loads [username]'s stored refresh token into the active slot and clears the
+  /// (other account's) access token so the next API call refreshes for the new
+  /// account. Returns false if the account isn't stored.
+  Future<bool> activateAccount(String username) async {
+    final rt = (await _accountsMap())[username];
+    if (rt == null) return false;
+    await _write(_kRefreshToken, rt);
+    await _storage.delete(key: _kAccessToken);
+    await _storage.delete(key: _kTokenExpiry);
+    await _write(_kUsername, username);
+    return true;
+  }
 
   /// Clears tokens + username but keeps API credentials (so re-login is quick).
   Future<void> clearSession() async {

@@ -200,6 +200,24 @@ class SettingsList extends ConsumerWidget {
             value: s.swipeActions,
             onChanged: ctrl.setSwipeActions,
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.play_circle_outline_rounded),
+            title: const Text('Autoplay videos'),
+            subtitle: const Text('Play videos muted as you scroll the feed'),
+            value: s.autoplayMedia,
+            onChanged: ctrl.setAutoplayMedia,
+          ),
+          const Divider(),
+          _section(context, 'Power-user features'),
+          SwitchListTile(
+            secondary: const Icon(Icons.speed_rounded),
+            title: const Text('Show API usage instead of search'),
+            subtitle: const Text(
+                'Replace the search bar on the Posts screen with your live '
+                'Reddit API rate-limit usage'),
+            value: s.showApiUsage,
+            onChanged: ctrl.setShowApiUsage,
+          ),
           const Divider(),
           _section(context, 'History & data'),
           ListTile(

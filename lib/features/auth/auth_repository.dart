@@ -89,6 +89,7 @@ class AuthRepository {
   Future<String> login({
     required String clientId,
     required String redirectUri,
+    bool ephemeral = false,
   }) async {
     clientId = clientId.trim();
     redirectUri = redirectUri.trim();
@@ -109,6 +110,9 @@ class AuthRepository {
       resultUrl = await FlutterWebAuth2.authenticate(
         url: authUri.toString(),
         callbackUrlScheme: RedditConstants.callbackScheme,
+        // Ephemeral = don't reuse the browser's Reddit cookies, so adding a
+        // second account lets you sign into a *different* account.
+        options: FlutterWebAuth2Options(preferEphemeral: ephemeral),
       );
     } catch (e) {
       throw AuthException('Login was cancelled or the browser failed: $e');

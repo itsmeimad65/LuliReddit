@@ -9,6 +9,12 @@ final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => AuthRepository(ref.watch(secureStoreProvider)),
 );
 
+/// All stored accounts (usernames). Refreshes when the session changes.
+final accountsProvider = FutureProvider.autoDispose<List<String>>((ref) async {
+  ref.watch(authControllerProvider);
+  return ref.read(secureStoreProvider).accounts;
+});
+
 /// The signed-in session. `null` means no user → show the login screen.
 class AuthSession {
   const AuthSession({required this.username});
@@ -22,23 +28,75 @@ class AuthController extends AsyncNotifier<AuthSession?> {
   @override
   Future<AuthSession?> build() async {
     final token = await _store.accessToken;
+    final refresh = await _store.refreshToken;
     final username = await _store.username;
-    if (token == null || username == null) return null;
+    if ((token == null && refresh == null) || username == null) return null;
+    // Migrate pre-multi-account installs: ensure the current user is in the map.
+    if (refresh != null) {
+      final accounts = await _store.accounts;
+      if (!accounts.contains(username)) {
+        await _store.upsertAccount(username, refresh);
+      }
+    }
     return AuthSession(username: username);
   }
 
-  /// Runs the full interactive login. Caller catches [AuthException] to display
-  /// the precise reason. On success the controller flips to the logged-in state.
+  /// Runs the full interactive login (first account or an additional one) using
+  /// the entered credentials, then records the account.
   Future<void> login({
     required String clientId,
     required String redirectUri,
+    bool ephemeral = false,
   }) async {
-    final username = await _repo.login(clientId: clientId, redirectUri: redirectUri);
+    final username = await _repo.login(
+        clientId: clientId, redirectUri: redirectUri, ephemeral: ephemeral);
+    final rt = await _store.refreshToken;
+    if (rt != null) await _store.upsertAccount(username, rt);
     state = AsyncData(AuthSession(username: username));
   }
 
+  /// Adds another account, reusing the saved API credentials.
+  Future<void> addAccount() async {
+    final clientId = await _store.clientId;
+    final redirectUri = await _store.redirectUri;
+    if (clientId == null || redirectUri == null) {
+      throw AuthException('No saved API credentials on this device.');
+    }
+    await login(
+        clientId: clientId, redirectUri: redirectUri, ephemeral: true);
+  }
+
+  /// Switches the active account.
+  Future<void> switchAccount(String username) async {
+    if (username == state.valueOrNull?.username) return;
+    final ok = await _store.activateAccount(username);
+    if (!ok) return;
+    state = AsyncData(AuthSession(username: username));
+  }
+
+  /// Signs out one account; switches to another if any remain.
+  Future<void> removeAccount(String username) async {
+    await _store.removeAccountEntry(username);
+    final isCurrent = username == state.valueOrNull?.username;
+    if (!isCurrent) {
+      ref.invalidateSelf(); // refresh accountsProvider
+      return;
+    }
+    final remaining = await _store.accounts;
+    if (remaining.isEmpty) {
+      await _store.clearSession();
+      await _store.clearAccounts();
+      state = const AsyncData(null);
+    } else {
+      await _store.activateAccount(remaining.first);
+      state = AsyncData(AuthSession(username: remaining.first));
+    }
+  }
+
+  /// Full sign-out of every account (used by Settings re-enter / clear-all).
   Future<void> logout() async {
     await _store.clearSession();
+    await _store.clearAccounts();
     state = const AsyncData(null);
   }
 }

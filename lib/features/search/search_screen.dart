@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
 import '../../core/providers.dart';
+import '../settings/settings_controller.dart';
 import '../../models/post.dart';
 import '../../models/reddit_user.dart';
 import '../../models/subreddit.dart';
@@ -21,9 +22,41 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
   bool _loading = false;
   String _query = '';
+  String _sort = 'relevance';
+  String _time = 'all';
   List<Post> _posts = [];
   List<Subreddit> _subs = [];
   List<RedditUser> _users = [];
+  List<String> _recent = [];
+
+  static const _sorts = {
+    'relevance': 'Relevance',
+    'hot': 'Hot',
+    'top': 'Top',
+    'new': 'New',
+    'comments': 'Comments',
+  };
+  static const _times = {
+    'hour': 'Hour',
+    'day': 'Day',
+    'week': 'Week',
+    'month': 'Month',
+    'year': 'Year',
+    'all': 'All time',
+  };
+  static const _recentKey = 'recent_searches';
+
+  @override
+  void initState() {
+    super.initState();
+    _recent = ref.read(sharedPrefsProvider).getStringList(_recentKey) ?? [];
+  }
+
+  void _saveRecent(String q) {
+    final list = [q, ..._recent.where((e) => e != q)].take(12).toList();
+    ref.read(sharedPrefsProvider).setStringList(_recentKey, list);
+    setState(() => _recent = list);
+  }
 
   @override
   void dispose() {
@@ -41,10 +74,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     });
   }
 
-  Future<void> _search(String q) async {
+  Future<void> _search(String q, {bool saveRecent = true}) async {
     q = q.trim();
     if (q.isEmpty) return;
+    if (_controller.text != q) _controller.text = q;
     FocusScope.of(context).unfocus();
+    if (saveRecent) _saveRecent(q);
     setState(() {
       _loading = true;
       _query = q;
@@ -52,7 +87,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final repo = ref.read(redditRepositoryProvider);
     try {
       final results = await Future.wait([
-        repo.searchPosts(q, subreddit: widget.initialSubreddit),
+        repo.searchPosts(q,
+            subreddit: widget.initialSubreddit, sort: _sort, time: _time),
         if (widget.initialSubreddit == null)
           repo.searchSubreddits(q)
         else
@@ -141,7 +177,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _empty(ColorScheme cs) => Center(
+  Widget _empty(ColorScheme cs) {
+    if (_recent.isEmpty) {
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -152,15 +190,100 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ],
         ),
       );
+    }
+    return ListView(
+      padding: const EdgeInsets.only(top: 8, bottom: 130),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+          child: Row(
+            children: [
+              Text('Recent',
+                  style: TextStyle(
+                      color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              TextButton(
+                onPressed: () {
+                  ref.read(sharedPrefsProvider).remove(_recentKey);
+                  setState(() => _recent = []);
+                },
+                child: const Text('Clear'),
+              ),
+            ],
+          ),
+        ),
+        for (final q in _recent)
+          ListTile(
+            leading: const Icon(Icons.history_rounded),
+            title: Text(q),
+            trailing: IconButton(
+              icon: const Icon(Icons.north_west_rounded, size: 18),
+              onPressed: () {
+                _controller.text = q;
+                _search(q, saveRecent: false);
+              },
+            ),
+            onTap: () => _search(q),
+          ),
+      ],
+    );
+  }
 
-  Widget _postsTab() => _posts.isEmpty
-      ? const Center(child: Text('No posts found'))
-      : ListView.separated(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 130),
-          itemCount: _posts.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (_, i) => PostCard(post: _posts[i]),
-        );
+  Widget _filterBar() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
+      child: Row(
+        children: [
+          for (final e in _sorts.entries) ...[
+            ChoiceChip(
+              label: Text(e.value),
+              selected: _sort == e.key,
+              onSelected: (_) {
+                setState(() => _sort = e.key);
+                _search(_query, saveRecent: false);
+              },
+            ),
+            const SizedBox(width: 6),
+          ],
+          if (_sort == 'top') ...[
+            const SizedBox(width: 6),
+            PopupMenuButton<String>(
+              initialValue: _time,
+              onSelected: (v) {
+                setState(() => _time = v);
+                _search(_query, saveRecent: false);
+              },
+              itemBuilder: (_) => [
+                for (final t in _times.entries)
+                  PopupMenuItem(value: t.key, child: Text(t.value)),
+              ],
+              child: Chip(
+                avatar: const Icon(Icons.schedule_rounded, size: 16),
+                label: Text(_times[_time] ?? 'All time'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _postsTab() => Column(
+        children: [
+          _filterBar(),
+          Expanded(
+            child: _posts.isEmpty
+                ? const Center(child: Text('No posts found'))
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 130),
+                    itemCount: _posts.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (_, i) => PostCard(post: _posts[i]),
+                  ),
+          ),
+        ],
+      );
 
   Widget _subsTab() {
     final cs = Theme.of(context).colorScheme;

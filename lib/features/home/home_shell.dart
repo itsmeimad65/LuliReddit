@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/network/rate_limit.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../auth/auth_controller.dart';
 import '../explore/explore_screen.dart';
@@ -520,26 +521,29 @@ class _FrontpageTab extends ConsumerWidget {
           child: Row(
             children: [
               Expanded(
-                child: GlassSurface(
-                  borderRadius: BorderRadius.circular(28),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(28),
-                    onTap: () => context.push('/search'),
-                    child: Padding(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                      child: Row(
-                        children: [
-                          Icon(Icons.search_rounded,
-                              color: cs.onSurfaceVariant),
-                          const SizedBox(width: 12),
-                          Text('Search Reddit',
-                              style: TextStyle(color: cs.onSurfaceVariant)),
-                        ],
+                child: ref.watch(settingsControllerProvider).showApiUsage
+                    ? _ApiUsagePill()
+                    : GlassSurface(
+                        borderRadius: BorderRadius.circular(28),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(28),
+                          onTap: () => context.push('/search'),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 18, vertical: 14),
+                            child: Row(
+                              children: [
+                                Icon(Icons.search_rounded,
+                                    color: cs.onSurfaceVariant),
+                                const SizedBox(width: 12),
+                                Text('Search Reddit',
+                                    style:
+                                        TextStyle(color: cs.onSurfaceVariant)),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
               ),
               const SizedBox(width: 4),
               IconButton.filled(
@@ -603,6 +607,40 @@ class _FrontpageTab extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Shows live Reddit API rate-limit usage in place of the search bar
+/// (power-user setting). Reddit allows ~100 requests/minute per OAuth client.
+class _ApiUsagePill extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final rl = ref.watch(rateLimitProvider);
+    final String label;
+    if (rl == null) {
+      label = 'API usage · no calls yet';
+    } else {
+      label = 'API ${rl.used}/${rl.total} · resets ${rl.resetSeconds}s';
+    }
+    return GlassSurface(
+      borderRadius: BorderRadius.circular(28),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        child: Row(
+          children: [
+            Icon(Icons.speed_rounded, color: cs.onSurfaceVariant),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: cs.onSurfaceVariant)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

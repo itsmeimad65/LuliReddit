@@ -45,6 +45,8 @@ class Settings {
     required this.subsCacheEnabled,
     required this.subsCacheMinutes,
     required this.textScale,
+    required this.autoplayMedia,
+    required this.showApiUsage,
   });
 
   final ThemeMode themeMode;
@@ -64,6 +66,8 @@ class Settings {
   final bool subsCacheEnabled; // cache subscription list in memory
   final int subsCacheMinutes; // how long to keep the subs cache
   final double textScale; // global text size multiplier (0.8–1.4)
+  final bool autoplayMedia; // autoplay videos/GIFs in feeds
+  final bool showApiUsage; // show API usage instead of search on Posts screen
 
   Settings copyWith({
     ThemeMode? themeMode,
@@ -83,6 +87,8 @@ class Settings {
     bool? subsCacheEnabled,
     int? subsCacheMinutes,
     double? textScale,
+    bool? autoplayMedia,
+    bool? showApiUsage,
   }) =>
       Settings(
         themeMode: themeMode ?? this.themeMode,
@@ -102,6 +108,8 @@ class Settings {
         subsCacheEnabled: subsCacheEnabled ?? this.subsCacheEnabled,
         subsCacheMinutes: subsCacheMinutes ?? this.subsCacheMinutes,
         textScale: textScale ?? this.textScale,
+        autoplayMedia: autoplayMedia ?? this.autoplayMedia,
+        showApiUsage: showApiUsage ?? this.showApiUsage,
       );
 }
 
@@ -132,6 +140,8 @@ class SettingsController extends Notifier<Settings> {
       subsCacheEnabled: p.getBool('subsCacheEnabled') ?? true,
       subsCacheMinutes: p.getInt('subsCacheMinutes') ?? 10,
       textScale: p.getDouble('textScale') ?? 1.0,
+      autoplayMedia: p.getBool('autoplayMedia') ?? true,
+      showApiUsage: p.getBool('showApiUsage') ?? false,
     );
   }
 
@@ -218,6 +228,16 @@ class SettingsController extends Notifier<Settings> {
   void setTextScale(double v) {
     _prefs.setDouble('textScale', v);
     state = state.copyWith(textScale: v);
+  }
+
+  void setAutoplayMedia(bool v) {
+    _prefs.setBool('autoplayMedia', v);
+    state = state.copyWith(autoplayMedia: v);
+  }
+
+  void setShowApiUsage(bool v) {
+    _prefs.setBool('showApiUsage', v);
+    state = state.copyWith(showApiUsage: v);
   }
 }
 

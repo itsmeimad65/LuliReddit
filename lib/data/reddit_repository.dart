@@ -347,7 +347,10 @@ class RedditRepository {
   }
 
   Future<Listing<Post>> searchPosts(String query,
-      {String? subreddit, String? after, String sort = 'relevance'}) async {
+      {String? subreddit,
+      String? after,
+      String sort = 'relevance',
+      String time = 'all'}) async {
     final base = subreddit == null ? '/search' : '/r/$subreddit/search';
     final res = await _client.get<Map<String, dynamic>>(
       base,
@@ -355,6 +358,7 @@ class RedditRepository {
         'q': query,
         'type': 'link',
         'sort': sort,
+        't': time,
         'limit': 25,
         if (subreddit != null) 'restrict_sr': true,
         if (after != null) 'after': after,
@@ -387,6 +391,12 @@ class RedditRepository {
       for (final c in children)
         RedditUser.fromData((c as Map)['data'] as Map<String, dynamic>)
     ];
+  }
+
+  /// Drops the in-memory subscription cache (e.g. on account switch).
+  void clearSubsCache() {
+    _subsCache = null;
+    _subsCacheAt = null;
   }
 
   Future<List<Subreddit>> getSubscribedSubreddits({bool force = false}) async {
