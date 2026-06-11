@@ -84,6 +84,11 @@ class RedditRepository {
     Map<String, double> interest = const {},
     Set<String> seen = const {},
     Set<String> muted = const {},
+    Map<String, int> impressions = const {},
+    double Function(String title)? titleScore,
+    String? Function(String title)? titleKeyword,
+    String? cursors, // JSON cursor bundle from a previous page's `after`
+    Set<String> excludeIds = const {},
   }) async {
     // Your communities are the backbone of the feed.
     List<Subreddit> mySubs = const [];
@@ -108,24 +113,52 @@ class RedditRepository {
         f.catchError((_) => const Listing<Post>(items: []));
 
     // Candidate generation, multi-signal:
-    //  • /best       — your subscription frontpage (the bulk)
-    //  • favourites  — fresh hot from each (well represented)
-    //  • interests   — hot from your most-engaged communities
-    //  • rising      — what's heating up in your subscriptions (freshness)
-    //  • r/popular   — a small discovery slice
-    final fetches = <Future<Listing<Post>>>[
-      safe(getPosts(sort: PostSort.best, limit: 100)),
-      safe(getPosts(sort: PostSort.rising, limit: 25)),
-      for (final f in favourites.take(8))
-        safe(getPosts(subreddit: f, sort: PostSort.hot, limit: 10)),
-      for (final s in topInterest)
-        if (!favourites.contains(s))
-          safe(getPosts(subreddit: s, sort: PostSort.hot, limit: 8)),
-      safe(getPosts(subreddit: 'popular', sort: PostSort.hot, limit: 20)),
-    ];
-    final results = await Future.wait(fetches);
+    //  • /best       — your subscription frontpage (the bulk; paginated)
+    //  • favourites  — fresh hot from each (first page only)
+    //  • interests   — hot from your most-engaged communities (first page)
+    //  • rising      — what's heating up in your subscriptions (paginated)
+    //  • r/popular   — a small discovery slice (paginated)
+    Map<String, dynamic> prev = const {};
+    if (cursors != null && cursors.isNotEmpty) {
+      try {
+        prev = jsonDecode(cursors) as Map<String, dynamic>;
+      } catch (_) {}
+    }
+    final firstPage = prev.isEmpty;
+    final bestAfter = prev['best'] as String?;
+    final risingAfter = prev['rising'] as String?;
+    final popularAfter = prev['popular'] as String?;
 
-    final ids = <String>{};
+    final bestF = (firstPage || bestAfter != null)
+        ? safe(getPosts(
+            sort: PostSort.best, limit: firstPage ? 100 : 50, after: bestAfter))
+        : Future.value(const Listing<Post>(items: []));
+    final risingF = (firstPage || risingAfter != null)
+        ? safe(getPosts(
+            sort: PostSort.rising, limit: 25, after: risingAfter))
+        : Future.value(const Listing<Post>(items: []));
+    final popularF = (firstPage || popularAfter != null)
+        ? safe(getPosts(
+            subreddit: 'popular',
+            sort: PostSort.hot,
+            limit: firstPage ? 20 : 15,
+            after: popularAfter))
+        : Future.value(const Listing<Post>(items: []));
+    final extraF = <Future<Listing<Post>>>[
+      if (firstPage) ...[
+        for (final f in favourites.take(8))
+          safe(getPosts(subreddit: f, sort: PostSort.hot, limit: 10)),
+        for (final s in topInterest)
+          if (!favourites.contains(s))
+            safe(getPosts(subreddit: s, sort: PostSort.hot, limit: 8)),
+      ],
+    ];
+
+    final results =
+        await Future.wait([bestF, risingF, popularF, ...extraF]);
+    final best = results[0], rising = results[1], popular = results[2];
+
+    final ids = <String>{...excludeIds};
     final unique = <Post>[];
     for (final listing in results) {
       for (final p in listing.items) {
@@ -135,7 +168,35 @@ class RedditRepository {
       }
     }
 
+    // Per-sub velocity percentile, so small communities aren't drowned out by
+    // raw point counts ("a top post *for this sub*" is what matters).
     final now = DateTime.now().toUtc();
+    double rawVelocity(Post p) {
+      final ageH = now.difference(p.created).inMinutes / 60.0;
+      return p.score / (ageH < 1 ? 1.0 : ageH);
+    }
+
+    final perSubVels = <String, List<double>>{};
+    for (final p in unique) {
+      perSubVels.putIfAbsent(p.subreddit, () => []).add(rawVelocity(p));
+    }
+    perSubVels.forEach((_, v) => v.sort());
+    double velocityPercentile(Post p) {
+      final v = perSubVels[p.subreddit]!;
+      if (v.length == 1) return 0.7;
+      var lo = 0, hi = v.length - 1;
+      final x = rawVelocity(p);
+      while (lo < hi) {
+        final mid = (lo + hi) >> 1;
+        if (v[mid] < x) {
+          lo = mid + 1;
+        } else {
+          hi = mid;
+        }
+      }
+      return lo / (v.length - 1);
+    }
+
     bool isPrimary(Post p) {
       final sub = p.subreddit.toLowerCase();
       return favourites.contains(sub) ||
@@ -147,19 +208,29 @@ class RedditRepository {
       final sub = p.subreddit.toLowerCase();
       final ageH = now.difference(p.created).inMinutes / 60.0;
       final age = ageH < 1 ? 1.0 : ageH;
-      final velocity = p.score / age; // engagement per hour
       final recency = 1 / (1 + age / 24); // soft decay over a day
       final quality = 0.5 + p.upvoteRatio; // 0.5–1.5
-      // Community weight dominates ranking: favourites ≫ subscribed ≫ discovery,
-      // boosted by your learned interest in that community.
+      // Community weight dominates: favourites ≫ subscribed ≫ discovery,
+      // boosted by learned interest in that community.
       final base = favourites.contains(sub)
           ? 4.0
           : subscribed.contains(sub)
               ? 2.5
               : 0.4;
       final w = base + (interestOf(sub).clamp(0, 12)) * 0.35;
-      final seenPenalty = seen.contains(p.id) ? 0.3 : 1.0;
-      return (velocity * 0.5 + recency * 30 + 20) * w * quality * seenPenalty;
+      // Title-keyword affinity (on-device content model).
+      final kw = titleScore?.call(p.title) ?? 0;
+      // Opened posts and posts shown twice without being opened both demote.
+      final shown = impressions[p.id] ?? 0;
+      final penalty = seen.contains(p.id)
+          ? 0.3
+          : shown >= 2
+              ? 0.45
+              : 1.0;
+      return (velocityPercentile(p) * 30 + recency * 30 + 15 + kw * 4) *
+          w *
+          quality *
+          penalty;
     }
 
     // Per-post "why you're seeing this" label.
@@ -168,6 +239,10 @@ class RedditRepository {
       if (favourites.contains(sub)) return '★ Favourite · r/${p.subreddit}';
       if (interestOf(sub) >= 4) {
         return 'Because you engage with r/${p.subreddit}';
+      }
+      final kwWord = titleKeyword?.call(p.title);
+      if (kwWord != null && !subscribed.contains(sub)) {
+        return 'Because you read posts about “$kwWord”';
       }
       if (subscribed.contains(sub)) return 'From r/${p.subreddit}';
       final ageH = now.difference(p.created).inMinutes / 60.0;
@@ -195,7 +270,8 @@ class RedditRepository {
         capPerSub(unique.where((p) => !isPrimary(p)).toList()..sort(byScore), 2);
 
     // Mostly your communities, with a light discovery sprinkle (~1 in 6,
-    // capped at 20% of the feed) for serendipity.
+    // capped at 20% of the feed) for serendipity. Keyword-matched discovery
+    // posts rank ahead of generic popular ones via the kw score term.
     final out = <Post>[];
     final discoveryCap = (primary.length * 0.2).ceil();
     var di = 0;
@@ -206,7 +282,21 @@ class RedditRepository {
       }
     }
     if (out.isEmpty) out.addAll(discovery); // no subscriptions → discovery only
-    return Listing(items: out, after: null);
+
+    // Encode the next-page cursors; null when every source is exhausted.
+    final nextCursors = <String, String>{
+      if (best.after != null && best.after!.isNotEmpty) 'best': best.after!,
+      if (rising.after != null && rising.after!.isNotEmpty)
+        'rising': rising.after!,
+      if (popular.after != null && popular.after!.isNotEmpty)
+        'popular': popular.after!,
+    };
+    return Listing(
+      items: out,
+      after: (out.isNotEmpty && nextCursors.isNotEmpty)
+          ? jsonEncode(nextCursors)
+          : null,
+    );
   }
 
   /// Frontpage (subreddit == null) or a specific subreddit's posts.

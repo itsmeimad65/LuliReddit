@@ -46,10 +46,13 @@ class _PostCardState extends ConsumerState<PostCard> {
       _likes = target == 1 ? true : (target == -1 ? false : null);
     });
     // Learn: upvoting a community raises its affinity; downvoting lowers it.
+    // Title keywords learn too (the on-device content model).
     if (target == 1) {
       ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 2);
+      ref.read(keywordStoreProvider.notifier).bumpTitle(widget.post.title, 1);
     } else if (target == -1) {
       ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, -1.5);
+      ref.read(keywordStoreProvider.notifier).bumpTitle(widget.post.title, -0.8);
     }
     try {
       await ref.read(redditRepositoryProvider).vote(widget.post.fullname, target);
@@ -66,6 +69,9 @@ class _PostCardState extends ConsumerState<PostCard> {
     final next = !_saved;
     setState(() => _saved = next);
     ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, next ? 3 : -3);
+    if (next) {
+      ref.read(keywordStoreProvider.notifier).bumpTitle(widget.post.title, 1.5);
+    }
     try {
       await ref.read(redditRepositoryProvider).setSaved(widget.post.fullname, next);
     } catch (_) {
@@ -87,6 +93,11 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   void _openMedia() {
     final p = widget.post;
+    // Viewing media is engagement too (slightly stronger than a plain open).
+    if (p.type != PostType.self &&
+        ref.read(settingsControllerProvider).trackHistory) {
+      ref.read(interestStoreProvider.notifier).bump(p.subreddit, 1);
+    }
     switch (p.type) {
       case PostType.image:
       case PostType.gif:
@@ -122,6 +133,9 @@ class _PostCardState extends ConsumerState<PostCard> {
     // "Why you're seeing this" banner (For You feed only).
     final reason = widget.post.feedReason;
     if (reason != null) {
+      // Count the impression: shown-but-never-opened posts get demoted on the
+      // next feed build (batched + deduped inside the store).
+      ref.read(impressionStoreProvider.notifier).record(widget.post.id);
       final cs = Theme.of(context).colorScheme;
       card = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -198,6 +212,9 @@ class _PostCardState extends ConsumerState<PostCard> {
               subtitle: Text('Show more from r/$sub and similar'),
               onTap: () {
                 interest.bump(sub, 5);
+                ref
+                    .read(keywordStoreProvider.notifier)
+                    .bumpTitle(widget.post.title, 2);
                 Navigator.pop(ctx);
                 toast("We'll show more like this");
               },
@@ -208,6 +225,9 @@ class _PostCardState extends ConsumerState<PostCard> {
               subtitle: Text('Show less from r/$sub'),
               onTap: () {
                 interest.bump(sub, -5);
+                ref
+                    .read(keywordStoreProvider.notifier)
+                    .bumpTitle(widget.post.title, -2);
                 Navigator.pop(ctx);
                 toast("We'll show less like this");
               },

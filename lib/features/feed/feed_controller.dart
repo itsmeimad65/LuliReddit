@@ -63,12 +63,23 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       _isFrontpage && ref.read(settingsControllerProvider).forYouFeed;
 
   Future<Listing<Post>> _fetch({String? after}) {
-    if (_forYou && after == null) {
+    if (_forYou) {
       final history = ref.read(historyControllerProvider);
+      final kw = ref.read(keywordStoreProvider.notifier);
       return _repo.getForYouFeed(
         interest: ref.read(interestStoreProvider),
         muted: ref.read(mutedSubsProvider),
         seen: {for (final e in history) e.id},
+        impressions: ref.read(impressionStoreProvider),
+        titleScore: kw.scoreTitle,
+        titleKeyword: kw.topKeywordIn,
+        cursors: after, // null = first page; else the encoded cursor bundle
+        excludeIds: after == null
+            ? const {}
+            : {
+                for (final p in state.valueOrNull?.posts ?? const <Post>[])
+                  p.id
+              },
       );
     }
     final multi = _multi;

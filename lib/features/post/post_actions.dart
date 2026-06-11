@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
 import '../../models/post.dart';
+import '../history/interest_store.dart';
 
 /// Bottom sheet of secondary actions for a post: hide, report, crosspost, open.
 void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
@@ -21,6 +22,9 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
             title: const Text('Share'),
             onTap: () {
               Navigator.pop(ctx);
+              // Sharing is a strong interest signal.
+              ref.read(interestStoreProvider.notifier).bump(post.subreddit, 1.5);
+              ref.read(keywordStoreProvider.notifier).bumpTitle(post.title, 0.75);
               shareUrl(context, 'https://reddit.com${post.permalink}',
                   subject: post.title);
             },

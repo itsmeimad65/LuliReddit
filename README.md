@@ -37,21 +37,30 @@ phone.
 1. **Candidates.** Luli pulls a pool of posts from the sources that actually
    matter to you: your subscription frontpage, fresh posts from your favourite
    subreddits, the communities you engage with most, what's rising in your
-   subscriptions, and a small slice of r/popular for discovery.
-2. **On-device learning.** As you use the app it quietly learns which subreddits
-   you care about — upvoting, saving, and opening posts nudge that community's
-   score up (saving counts most, a passing glance least). This lives only in
-   local storage.
+   subscriptions, and a small slice of r/popular for discovery. The feed is
+   endless — scrolling past the first batch pages deeper into those sources and
+   re-ranks as you go.
+2. **On-device learning.** As you use the app it quietly learns which
+   subreddits you care about — commenting counts most, then saving, upvoting,
+   sharing, viewing media, and opening posts. It also learns *within* a
+   community from post titles (a tiny local keyword model — so it can tell your
+   F1 from your NBA). Everything decays over time, so the feed tracks your
+   current taste, not last month's binge. All of it lives only in local
+   storage, separately per account.
 3. **Ranking.** Each candidate is scored by *community weight* (favourites ≫
-   subscribed ≫ discovery, boosted by what you've learned) combined with the
-   post's velocity (score per hour), recency, and upvote ratio. Already-seen
-   posts are demoted.
+   subscribed ≫ discovery, boosted by what you've learned), the post's
+   popularity *relative to its own community* (so small subreddits aren't
+   drowned out by big ones), recency, upvote ratio, and your keyword affinity.
+   Posts you've opened — or that were shown twice and ignored — are demoted, so
+   refreshes feel fresh.
 4. **Diversity.** No single subreddit can dominate — posts are capped per
-   community, and discovery picks are sprinkled in at roughly 1 in 6 so the feed
-   stays mostly *your* communities without becoming repetitive.
+   community, and discovery picks are sprinkled in at roughly 1 in 6 so the
+   feed stays mostly *your* communities without becoming repetitive. Discovery
+   that matches your learned keywords outranks generic popular posts.
 5. **Explainable & tunable.** Every post shows why it's there ("★ Favourite",
-   "Because you engage with r/…", "Trending"), and a long-press lets you ask for
-   more or less of a community, or mute it entirely.
+   "Because you engage with r/…", "Because you read posts about …",
+   "Trending"), and a long-press lets you ask for more or less of a community,
+   or mute it entirely.
 
 ## Install
 

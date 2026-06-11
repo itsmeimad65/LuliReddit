@@ -2,6 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+
+import '../history/interest_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -106,6 +108,13 @@ class PostDetailScreen extends ConsumerWidget {
                     parentFullname: thread.post.fullname, parentDepth: -1);
                 if (reply != null) {
                   notifier.insertReply(thread.post.fullname, reply);
+                  // Commenting is the strongest engagement signal we have.
+                  ref
+                      .read(interestStoreProvider.notifier)
+                      .bump(thread.post.subreddit, 2.5);
+                  ref
+                      .read(keywordStoreProvider.notifier)
+                      .bumpTitle(thread.post.title, 1);
                 }
               },
               icon: const Icon(Icons.add_comment_rounded),
@@ -158,7 +167,12 @@ class PostDetailScreen extends ConsumerWidget {
                         parentFullname: c.fullname,
                         parentDepth: c.depth,
                         replyingTo: c.author);
-                    if (reply != null) notifier.insertReply(c.fullname, reply);
+                    if (reply != null) {
+                      notifier.insertReply(c.fullname, reply);
+                      ref
+                          .read(interestStoreProvider.notifier)
+                          .bump(thread.post.subreddit, 2.5);
+                    }
                   },
                   onEdit: () async {
                     final newText = await showEditSheet(context, ref,

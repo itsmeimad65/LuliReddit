@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/post.dart';
 import '../settings/settings_controller.dart';
+import 'interest_store.dart' show userScopedPrefsKey;
 
 /// A locally-stored record of a viewed post. History is **on-device only** —
 /// Reddit does not sync "viewed" state to third-party clients.
@@ -32,11 +33,13 @@ class HistoryEntry {
 }
 
 class HistoryController extends Notifier<List<HistoryEntry>> {
-  static const _key = 'history';
+  static const _base = 'history';
   static const _cap = 500;
+  late String _key;
 
   @override
   List<HistoryEntry> build() {
+    _key = userScopedPrefsKey(ref, _base); // per-account
     final raw = ref.read(sharedPrefsProvider).getStringList(_key) ?? const [];
     return [
       for (final s in raw)
