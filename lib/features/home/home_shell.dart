@@ -65,6 +65,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   bool _onScroll(UserScrollNotification n) {
     if (n.depth != 0) return false;
+    final m = n.metrics;
+    // Near the top or overscrolling (iOS rubber-band) — keep chrome shown and
+    // don't toggle, so the bar doesn't bounce in/out as you scroll back up.
+    if (m.outOfRange || m.pixels <= m.minScrollExtent + 4) {
+      if (!_chrome) setState(() => _chrome = true);
+      return false;
+    }
     if (n.direction == ScrollDirection.reverse && _chrome) {
       setState(() => _chrome = false);
     } else if (n.direction == ScrollDirection.forward && !_chrome) {
@@ -101,10 +108,19 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         child: _FloatingNav(
           selectedIndex: _index,
           unread: unread,
-          onSelected: (i) => setState(() {
-            _index = i;
-            _chrome = true; // always reveal chrome when switching tabs
-          }),
+          onSelected: (i) {
+            // Re-tapping the active Posts tab scrolls it to top (or refreshes).
+            if (i == _index) {
+              if (i == 0) {
+                ref.read(frontpageScrollSignalProvider.notifier).state++;
+              }
+              return;
+            }
+            setState(() {
+              _index = i;
+              _chrome = true; // always reveal chrome when switching tabs
+            });
+          },
         ),
       ),
     );

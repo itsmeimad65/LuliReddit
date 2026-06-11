@@ -61,9 +61,12 @@ void openGalleryViewer(BuildContext context, List<GalleryImage> images,
 }
 
 void openVideoViewer(BuildContext context, String url,
-    {String? title, String? downloadUrl}) {
-  Navigator.of(context).push(_overlayRoute(
-      _VideoViewer(url: url, title: title, downloadUrl: downloadUrl)));
+    {String? title, String? downloadUrl, String? externalUrl}) {
+  Navigator.of(context).push(_overlayRoute(_VideoViewer(
+      url: url,
+      title: title,
+      downloadUrl: downloadUrl,
+      externalUrl: externalUrl)));
 }
 
 /// Normalizes common host quirks to a directly-playable video URL
@@ -450,10 +453,12 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
 }
 
 class _VideoViewer extends StatefulWidget {
-  const _VideoViewer({required this.url, this.title, this.downloadUrl});
+  const _VideoViewer(
+      {required this.url, this.title, this.downloadUrl, this.externalUrl});
   final String url;
   final String? title;
   final String? downloadUrl; // direct mp4 for saving (HLS can't be saved)
+  final String? externalUrl; // original link, for "open in browser" fallback
 
   @override
   State<_VideoViewer> createState() => _VideoViewerState();
@@ -483,6 +488,16 @@ class _VideoViewerState extends State<_VideoViewer> {
           autoPlay: true,
           looping: true,
           aspectRatio: v.value.aspectRatio,
+          // Lift the control bar above the home indicator / our top buttons.
+          controlsSafeAreaMinimum:
+              const EdgeInsets.only(left: 8, right: 8, bottom: 28, top: 56),
+          // iOS gets the larger, touch-friendly Cupertino scrubber/buttons.
+          customControls: Platform.isIOS
+              ? const CupertinoControls(
+                  backgroundColor: Color(0xB2000000),
+                  iconColor: Colors.white,
+                )
+              : const MaterialControls(),
         );
       });
     } catch (e) {
@@ -498,6 +513,33 @@ class _VideoViewerState extends State<_VideoViewer> {
     super.dispose();
   }
 
+  Widget _errorView(BuildContext context) {
+    final link = widget.externalUrl ?? widget.url;
+    return Padding(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.videocam_off_rounded, color: Colors.white54, size: 48),
+          const SizedBox(height: 14),
+          const Text(
+            "This video can't be played in the app — its format isn't "
+            'supported on this device.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70, fontSize: 15),
+          ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: () => launchUrl(Uri.parse(link),
+                mode: LaunchMode.externalApplication),
+            icon: const Icon(Icons.open_in_new_rounded),
+            label: const Text('Open in browser'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -506,9 +548,7 @@ class _VideoViewerState extends State<_VideoViewer> {
         children: [
           Center(
             child: _error != null
-                ? Text('Could not play video.\n$_error',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white70))
+                ? _errorView(context)
                 : _chewie == null
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Chewie(controller: _chewie!),

@@ -234,6 +234,7 @@ class RedditRepository {
     required String subreddit,
     required String postId,
     String sort = 'confidence',
+    String? focusCommentId,
   }) async {
     // `_` (or empty) means the subreddit is unknown (e.g. a redd.it short link);
     // Reddit resolves the post from just the id.
@@ -242,7 +243,16 @@ class RedditRepository {
         unknown ? '/comments/$postId' : '/r/$subreddit/comments/$postId';
     final res = await _client.get<List<dynamic>>(
       path,
-      query: {'sort': sort, 'limit': 100},
+      query: {
+        'sort': sort,
+        'limit': 100,
+        // Focus on a single comment (from a permalink / inbox reply): Reddit
+        // returns that comment's thread, with a few parents for context.
+        if (focusCommentId != null) ...{
+          'comment': focusCommentId,
+          'context': 3,
+        },
+      },
     );
     final body = res.data!;
     final postChildren =

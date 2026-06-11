@@ -10,6 +10,10 @@ import 'feed_controller.dart';
 import 'post_card.dart';
 import 'post_skeleton.dart';
 
+/// Bumped to ask the frontpage feed to scroll to top (or refresh if already
+/// there) — e.g. when the Posts tab is tapped while already selected.
+final frontpageScrollSignalProvider = StateProvider<int>((ref) => 0);
+
 /// Scrollable list of posts for a feed key ('' = frontpage, else subreddit).
 /// [header] is rendered as the first scrolling item (e.g. a big title).
 class PostListView extends ConsumerStatefulWidget {
@@ -41,8 +45,24 @@ class _PostListViewState extends ConsumerState<PostListView> {
     super.dispose();
   }
 
+  void _scrollToTopOrRefresh() {
+    if (!_scroll.hasClients) return;
+    if (_scroll.offset > 20) {
+      _scroll.animateTo(0,
+          duration: const Duration(milliseconds: 320), curve: Curves.easeOut);
+    } else {
+      HapticFeedback.mediumImpact();
+      ref.read(feedControllerProvider(widget.feedKey).notifier).refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Frontpage only: respond to the "tap active tab" signal.
+    if (widget.feedKey.isEmpty) {
+      ref.listen<int>(frontpageScrollSignalProvider,
+          (_, __) => _scrollToTopOrRefresh());
+    }
     final async = ref.watch(feedControllerProvider(widget.feedKey));
     final notifier =
         ref.read(feedControllerProvider(widget.feedKey).notifier);

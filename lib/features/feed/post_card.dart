@@ -97,7 +97,8 @@ class _PostCardState extends ConsumerState<PostCard> {
         final src = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
         openVideoViewer(context, src,
             title: p.title,
-            downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url));
+            downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
+            externalUrl: p.url);
       case PostType.link:
         launchUrl(Uri.parse(p.url), mode: LaunchMode.externalApplication);
       case PostType.self:
@@ -126,7 +127,7 @@ class _PostCardState extends ConsumerState<PostCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 2, 6, 0),
+            padding: const EdgeInsets.fromLTRB(18, 2, 18, 0),
             child: Row(
               children: [
                 Icon(Icons.auto_awesome_rounded, size: 13, color: cs.primary),
@@ -140,34 +141,6 @@ class _PostCardState extends ConsumerState<PostCard> {
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                         color: cs.primary),
-                  ),
-                ),
-                // Mark-as-read toggle (For You).
-                InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () {
-                    final h = ref.read(historyControllerProvider.notifier);
-                    seen ? h.removeViewed(widget.post.id) : h.markViewed(widget.post);
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          seen
-                              ? Icons.check_circle_rounded
-                              : Icons.circle_outlined,
-                          size: 16,
-                          color: seen ? cs.primary : cs.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Text('Read',
-                            style: TextStyle(
-                                fontSize: 11.5,
-                                color: cs.onSurfaceVariant)),
-                      ],
-                    ),
                   ),
                 ),
               ],
@@ -763,6 +736,7 @@ class _PostCardState extends ConsumerState<PostCard> {
           onTap: _openDetail,
         ),
         const Spacer(),
+        _ReadToggle(post: widget.post),
         IconButton(
           onPressed: _toggleSave,
           icon: Icon(_saved
@@ -775,6 +749,30 @@ class _PostCardState extends ConsumerState<PostCard> {
           icon: const Icon(Icons.more_vert_rounded),
         ),
       ],
+    );
+  }
+}
+
+/// "Read" toggle shown on every post card (left of Save). Marks the post as
+/// read/unread in local history; read posts get a filled, accent check.
+class _ReadToggle extends ConsumerWidget {
+  const _ReadToggle({required this.post});
+  final Post post;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final seen = ref.watch(historyContainsProvider(post.id));
+    return IconButton(
+      tooltip: seen ? 'Mark as unread' : 'Mark as read',
+      onPressed: () {
+        final h = ref.read(historyControllerProvider.notifier);
+        seen ? h.removeViewed(post.id) : h.markViewed(post);
+      },
+      icon: Icon(
+        seen ? Icons.check_circle_rounded : Icons.check_circle_outline_rounded,
+        color: seen ? cs.primary : cs.onSurfaceVariant,
+      ),
     );
   }
 }

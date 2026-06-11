@@ -91,6 +91,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           subreddit: state.pathParameters['subreddit']!,
           postId: state.pathParameters['id']!,
           initialPost: state.extra as Post?,
+          focusCommentId: state.uri.queryParameters['comment'],
         ),
       ),
     ],

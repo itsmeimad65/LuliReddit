@@ -138,7 +138,12 @@ class _InboxListState extends ConsumerState<_InboxList>
     } else {
       final ref0 = item.postRef;
       if (ref0 != null) {
-        context.push('/comments/${ref0.subreddit}/${ref0.postId}');
+        // Comment replies/mentions are t1_<id> → jump straight to that comment.
+        final commentId = item.fullname.startsWith('t1_')
+            ? item.fullname.substring(3)
+            : null;
+        final suffix = commentId != null ? '?comment=$commentId' : '';
+        context.push('/comments/${ref0.subreddit}/${ref0.postId}$suffix');
       }
     }
   }

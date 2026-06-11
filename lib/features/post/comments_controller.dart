@@ -45,17 +45,26 @@ const commentSortLabels = {
 class CommentsController extends FamilyAsyncNotifier<PostThread, String> {
   String _subreddit = '';
   String _postId = '';
+  String? _focusCommentId; // set when viewing a single comment thread
   String _sort = 'confidence';
   String get sort => _sort;
+  bool get isFocused => _focusCommentId != null;
 
   @override
   Future<PostThread> build(String arg) async {
+    // Key: "subreddit/postId" or "subreddit/postId/focus_<commentId>".
     final parts = arg.split('/');
     _subreddit = parts[0];
     _postId = parts[1];
-    final (post, comments) = await ref
-        .read(redditRepositoryProvider)
-        .getComments(subreddit: _subreddit, postId: _postId, sort: _sort);
+    _focusCommentId = (parts.length > 2 && parts[2].startsWith('focus_'))
+        ? parts[2].substring(6)
+        : null;
+    final (post, comments) = await ref.read(redditRepositoryProvider).getComments(
+          subreddit: _subreddit,
+          postId: _postId,
+          sort: _sort,
+          focusCommentId: _focusCommentId,
+        );
     return PostThread(post: post, comments: comments);
   }
 

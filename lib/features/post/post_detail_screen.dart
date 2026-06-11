@@ -28,15 +28,19 @@ class PostDetailScreen extends ConsumerWidget {
     required this.subreddit,
     required this.postId,
     this.initialPost,
+    this.focusCommentId,
   });
 
   final String subreddit;
   final String postId;
   final Post? initialPost;
+  final String? focusCommentId; // open a single comment thread (from a permalink)
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final key = '$subreddit/$postId';
+    final key = focusCommentId != null
+        ? '$subreddit/$postId/focus_$focusCommentId'
+        : '$subreddit/$postId';
     final async = ref.watch(commentsControllerProvider(key));
     final notifier = ref.read(commentsControllerProvider(key).notifier);
     final username =
@@ -126,7 +130,7 @@ class PostDetailScreen extends ConsumerWidget {
         ),
         data: (thread) {
           final flat = _flatten(thread.comments, thread.collapsed);
-          return RefreshIndicator(
+          final list = RefreshIndicator(
             onRefresh: notifier.refresh,
             child: ListView.builder(
               padding: const EdgeInsets.only(top: 6, bottom: 32),
@@ -173,6 +177,42 @@ class PostDetailScreen extends ConsumerWidget {
                 );
               },
             ),
+          );
+          if (focusCommentId == null) return list;
+          // Single-comment view (from an inbox reply / permalink).
+          final cs = Theme.of(context).colorScheme;
+          return Column(
+            children: [
+              Material(
+                color: cs.secondaryContainer,
+                child: InkWell(
+                  onTap: () =>
+                      context.replace('/comments/$subreddit/$postId'),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Row(
+                      children: [
+                        Icon(Icons.subdirectory_arrow_right_rounded,
+                            size: 18, color: cs.onSecondaryContainer),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text('Viewing a single comment thread',
+                              style: TextStyle(
+                                  color: cs.onSecondaryContainer,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                        Text('Show all',
+                            style: TextStyle(
+                                color: cs.primary,
+                                fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(child: list),
+            ],
           );
         },
       ),
@@ -285,7 +325,8 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
         openVideoViewer(
             context, p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
             title: p.title,
-            downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url));
+            downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
+            externalUrl: p.url);
       case PostType.link:
         launchUrl(Uri.parse(p.url), mode: LaunchMode.externalApplication);
       case PostType.self:

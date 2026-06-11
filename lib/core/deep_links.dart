@@ -9,12 +9,15 @@ String? routeForRedditUrl(Uri uri) {
   }
   if (!(host == 'reddit.com' || host.endsWith('.reddit.com'))) return null;
 
-  // Comment / post permalinks: /r/<sub>/comments/<id>/...  or  /comments/<id>
+  // Comment / post permalinks: /r/<sub>/comments/<id>/<slug>/<commentId> or
+  // /comments/<id>. A segment after the title slug is a focused comment.
   final ci = segs.indexOf('comments');
   if (ci != -1 && ci + 1 < segs.length) {
     final id = segs[ci + 1];
     final sub = (ci >= 2 && segs[ci - 2] == 'r') ? segs[ci - 1] : '_';
-    return '/comments/$sub/$id';
+    final commentId = segs.length > ci + 3 ? segs[ci + 3] : null;
+    final suffix = commentId != null ? '?comment=$commentId' : '';
+    return '/comments/$sub/$id$suffix';
   }
 
   // Multireddit: /user/<name>/m/<multi>
