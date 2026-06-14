@@ -11,7 +11,8 @@ directly to Reddit; the only other data it sends is anonymous usage analytics
 - A personalized **For You** feed built entirely on-device, with explainable
   "why you're seeing this" labels and per-post tuning
 - Full participation: vote, comment, reply, submit text/link/image/gallery/video
-  posts, edit, and delete
+  posts, edit, and delete — with image/video attachments (and clipboard paste)
+  in replies and messages
 - Inbox and private messages, with optional background notifications (polling
   only — no Firebase/push services), plus swipe to mark read/unread or delete
 - Saved, upvoted, and locally-stored history

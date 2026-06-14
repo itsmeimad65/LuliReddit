@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+import '../core/network/catbox.dart';
 import '../core/network/reddit_client.dart';
 import '../models/comment.dart';
 import '../models/flair.dart';
@@ -592,15 +593,59 @@ class RedditRepository {
   Future<Comment> reply({
     required String parentFullname,
     required String text,
+    String? richtextJson,
     int depth = 0,
   }) async {
-    final res = await _client.post<Map<String, dynamic>>('/api/comment',
-        data: {'api_type': 'json', 'thing_id': parentFullname, 'text': text});
+    final res = await _client.post<Map<String, dynamic>>('/api/comment', data: {
+      'api_type': 'json',
+      'thing_id': parentFullname,
+      if (richtextJson != null) 'richtext_json': richtextJson else 'text': text,
+    });
     final errors = _apiErrors(res.data);
     if (errors.isNotEmpty) throw Exception(errors.first);
     final things =
         (((res.data?['json'] as Map)['data'] as Map)['things'] as List);
     return Comment.fromChild(things.first as Map<String, dynamic>, depth);
+  }
+
+  /// Posts a comment reply with an inline image, hosted by Reddit via the
+  /// richtext API (the way the official app does it). Subreddits that disallow
+  /// comment images will reject this, so we transparently fall back to hosting
+  /// the image on Catbox and dropping a link into the comment instead.
+  Future<Comment> replyWithImage({
+    required String parentFullname,
+    required String text,
+    required Uint8List bytes,
+    required String filename,
+    required String mimeType,
+    int depth = 0,
+  }) async {
+    try {
+      final asset = await uploadMediaAsset(
+          bytes: bytes, filename: filename, mimeType: mimeType);
+      final doc = {
+        'document': [
+          if (text.isNotEmpty)
+            {
+              'e': 'par',
+              'c': [
+                {'e': 'text', 't': text}
+              ]
+            },
+          {'e': 'img', 'id': asset.assetId},
+        ],
+      };
+      return await reply(
+        parentFullname: parentFullname,
+        text: text,
+        richtextJson: jsonEncode(doc),
+        depth: depth,
+      );
+    } catch (_) {
+      final url = await uploadToCatbox(bytes: bytes, filename: filename);
+      final body = text.isEmpty ? url : '$text\n\n$url';
+      return reply(parentFullname: parentFullname, text: body, depth: depth);
+    }
   }
 
   /// Edits the body of your own post (selftext) or comment. Returns new body.
