@@ -21,6 +21,7 @@ import 'features/settings/settings_screen.dart';
 import 'features/subreddit/subreddit_screen.dart';
 import 'features/user/saved_hub_screen.dart';
 import 'features/user/user_screen.dart';
+import 'core/deep_links.dart';
 import 'models/inbox_item.dart';
 import 'models/post.dart';
 
@@ -34,6 +35,16 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     observers: [appRouteObserver],
     redirect: (context, state) {
+      // A reddit/redd.it URL arriving as a deep link (cold start or platform
+      // route) — map it to an in-app route so go_router doesn't fail with
+      // "no routes for location". Falls back to home if unsupported.
+      final host = state.uri.host.toLowerCase();
+      if (host == 'redd.it' ||
+          host == 'reddit.com' ||
+          host.endsWith('.reddit.com')) {
+        return routeForRedditUrl(state.uri) ?? '/';
+      }
+
       final auth = ref.read(authControllerProvider);
       if (auth.isLoading) return null;
       final loggedIn = auth.valueOrNull != null;
@@ -42,6 +53,24 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (atLogin) return '/';
       return null;
     },
+    errorBuilder: (context, state) => Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Page not found', style: TextStyle(fontSize: 18)),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => context.go('/'),
+                child: const Text('Home'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/', builder: (_, __) => const HomeShell()),

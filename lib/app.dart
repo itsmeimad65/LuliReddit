@@ -26,10 +26,9 @@ class _LuliAppState extends ConsumerState<LuliApp> {
   @override
   void initState() {
     super.initState();
+    // Warm deep links only. The cold-start link is handled by the GoRouter
+    // redirect (which maps reddit URLs), so we don't open it twice.
     _linkSub = _appLinks.uriLinkStream.listen(_handleLink);
-    _appLinks.getInitialLink().then((uri) {
-      if (uri != null) _handleLink(uri);
-    });
 
     // Tapping an inbox notification deep-links to the comment/message.
     NotificationService.onSelectRoute = (route) {

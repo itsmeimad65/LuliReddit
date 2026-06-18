@@ -35,13 +35,31 @@ class AuthController extends AsyncNotifier<AuthSession?> {
   SecureStore get _store => ref.read(secureStoreProvider);
   AuthRepository get _repo => ref.read(authRepositoryProvider);
 
+  // flutter_secure_storage can transiently return null / throw on a cold start
+  // (keystore not ready yet), which previously bounced a logged-in user to the
+  // login screen until they force-restarted. Retry the critical reads.
+  Future<String?> _readRetry(Future<String?> Function() read) async {
+    for (var i = 0; i < 3; i++) {
+      try {
+        final v = await read();
+        if (v != null) return v;
+      } catch (_) {/* retry */}
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
+    try {
+      return await read();
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Future<AuthSession?> build() async {
-    final username = await _store.username;
+    final username = await _readRetry(() => _store.username);
     if (username == null) return null;
     final mode = await _store.authMode;
     if (mode == 'web') {
-      final cookie = await _store.webCookie;
+      final cookie = await _readRetry(() => _store.webCookie);
       if (cookie == null) return null;
       final accounts = await _store.accounts;
       if (!accounts.contains(username)) {
@@ -50,8 +68,8 @@ class AuthController extends AsyncNotifier<AuthSession?> {
       return AuthSession(username: username);
     }
     // OAuth (default).
+    final refresh = await _readRetry(() => _store.refreshToken);
     final token = await _store.accessToken;
-    final refresh = await _store.refreshToken;
     if (token == null && refresh == null) return null;
     // Migrate pre-multi-account installs: ensure the current user is in the map.
     if (refresh != null) {
