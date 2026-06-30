@@ -18,6 +18,14 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
+    dependenciesInfo {
+        // Drop the Google-encrypted dependency-metadata blob from the signing
+        // block so IzzyOnDroid/F-Droid checks pass (it's unverifiable by anyone
+        // but Google). Disabled for both APKs and App Bundles.
+        includeInApk = false
+        includeInBundle = false
+    }
+
     compileOptions {
         // Required by flutter_local_notifications (uses java.time APIs).
         isCoreLibraryDesugaringEnabled = true
