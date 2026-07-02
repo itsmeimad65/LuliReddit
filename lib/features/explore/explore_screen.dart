@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/deep_links.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../models/subreddit.dart';
 import '../history/history_store.dart';
 import '../home/tab_signals.dart';
+import '../multireddit/multireddit_providers.dart';
 
 final subscribedSubredditsProvider =
     FutureProvider.autoDispose<List<Subreddit>>((ref) async {
@@ -106,6 +108,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   ),
                 ),
               ),
+              // Custom feeds (multireddits) — hidden when the user has none.
+              SliverToBoxAdapter(child: _customFeeds(context, cs)),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -246,6 +250,47 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Horizontal row of the user's custom feeds (multireddits). Renders nothing
+  /// while loading, on error, or when the user has none.
+  Widget _customFeeds(BuildContext context, ColorScheme cs) {
+    final multis = ref.watch(myMultiredditsProvider);
+    final list = multis.valueOrNull ?? const [];
+    if (list.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+          child: Text('Custom feeds',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: cs.primary, fontWeight: FontWeight.w700)),
+        ),
+        SizedBox(
+          height: 44,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: list.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) {
+              final m = list[i];
+              return ActionChip(
+                avatar: Icon(Icons.dynamic_feed_rounded,
+                    size: 18, color: cs.onSecondaryContainer),
+                label: Text(m.displayName.isNotEmpty ? m.displayName : m.name),
+                onPressed: () {
+                  final route = routeForRedditUrl(
+                      Uri.parse('https://reddit.com${m.path}'));
+                  if (route != null) context.push(route);
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
