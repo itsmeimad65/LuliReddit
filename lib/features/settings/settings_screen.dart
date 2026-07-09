@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/backup.dart';
 import '../../core/network/rate_limit.dart';
 import '../../data/ai_service.dart';
+import '../post/comments_controller.dart' show commentSorts, commentSortLabels;
 import '../../core/providers.dart';
 import '../../core/reddit_constants.dart';
 import '../../data/reddit_repository.dart';
@@ -198,6 +199,13 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             title: const Text('Default sort'),
             subtitle: Text(s.defaultSort.label),
             onTap: () => _pickSort(context, ctrl, s.defaultSort),
+          ),
+          ListTile(
+            leading: const Icon(Icons.forum_outlined),
+            title: const Text('Default comment sort'),
+            subtitle:
+                Text(commentSortLabels[s.defaultCommentSort] ?? s.defaultCommentSort),
+            onTap: () => _pickCommentSort(context, ctrl, s.defaultCommentSort),
           ),
           ListTile(
             leading: Icon(s.postDisplay.icon),
@@ -743,6 +751,31 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _pickCommentSort(
+      BuildContext context, SettingsController ctrl, String current) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final s in commentSorts)
+              ListTile(
+                title: Text(commentSortLabels[s] ?? s),
+                trailing:
+                    s == current ? const Icon(Icons.check_rounded) : null,
+                onTap: () {
+                  ctrl.setDefaultCommentSort(s);
+                  Navigator.pop(ctx);
+                },
+              ),
+          ],
         ),
       ),
     );

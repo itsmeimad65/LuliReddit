@@ -11,6 +11,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/format.dart';
 import '../../core/providers.dart';
+import '../../core/deep_links.dart';
+import '../../core/media_links.dart';
 import '../../core/share.dart';
 import '../../core/widgets/markdown_style.dart';
 import '../../data/ai_service.dart';
@@ -473,6 +475,113 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Opens a link tapped inside a comment: media plays/shows in-app, reddit links
+/// route in-app, everything else goes to the browser.
+void _openCommentLink(BuildContext context, String? href) {
+  if (href == null || href.isEmpty) return;
+  final uri = Uri.tryParse(href);
+  if (uri == null) return;
+  if (isVideoUrl(uri)) {
+    openVideoViewer(context, resolveVideoUrl(href), externalUrl: href);
+    return;
+  }
+  if (isImageUrl(uri)) {
+    openImageViewer(context, href);
+    return;
+  }
+  final route = routeForRedditUrl(uri);
+  if (route != null) {
+    context.push(route);
+    return;
+  }
+  launchUrl(uri, mode: LaunchMode.externalApplication);
+}
+
+/// Inline previews for any media linked in a comment body (images, gifs,
+/// videos), so comments don't just show a bare URL that opens a browser.
+class _CommentMedia extends StatelessWidget {
+  const _CommentMedia({required this.body});
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final links = extractMediaLinks(body);
+    if (links.isEmpty) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Cap it so a link-heavy comment can't blow up the list.
+          for (final uri in links.take(3))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: GestureDetector(
+                onTap: () => _openCommentLink(context, uri.toString()),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 260),
+                        child: isVideoUrl(uri)
+                            ? Container(
+                                height: 120,
+                                width: double.infinity,
+                                color: cs.surfaceContainerHighest,
+                              )
+                            : CachedNetworkImage(
+                                imageUrl: uri.toString(),
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                placeholder: (_, __) => Container(
+                                    height: 120,
+                                    color: cs.surfaceContainerHighest),
+                                errorWidget: (_, __, ___) => Container(
+                                  height: 60,
+                                  color: cs.surfaceContainerHighest,
+                                  alignment: Alignment.center,
+                                  child: Text('Could not load media',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: cs.onSurfaceVariant)),
+                                ),
+                              ),
+                      ),
+                      if (isVideoUrl(uri))
+                        Icon(Icons.play_circle_fill_rounded,
+                            size: 48, color: cs.onSurface.withValues(alpha: .8)),
+                      if (isGifUrl(uri))
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text('GIF',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white)),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1070,16 +1179,30 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
-                  _AuthorDot(name: comment.author, size: 20),
-                  const SizedBox(width: 8),
+                  // Tapping the avatar/name opens the commenter's profile.
                   Flexible(
-                    child: Text(
-                      'u/${comment.author}',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: nameColor,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: comment.author == '[deleted]'
+                          ? null
+                          : () => context.push('/u/${comment.author}'),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _AuthorDot(name: comment.author, size: 20),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'u/${comment.author}',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: nameColor,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -1114,16 +1237,18 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           if (!widget.collapsed) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-              child: MarkdownBody(
-                data: comment.body,
-                selectable: true,
-                styleSheet: redditMarkdownStyle(context),
-                onTapLink: (_, href, __) {
-                  if (href != null) {
-                    launchUrl(Uri.parse(href),
-                        mode: LaunchMode.externalApplication);
-                  }
-                },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  MarkdownBody(
+                    data: comment.body,
+                    selectable: true,
+                    styleSheet: redditMarkdownStyle(context),
+                    onTapLink: (_, href, __) =>
+                        _openCommentLink(context, href),
+                  ),
+                  _CommentMedia(body: comment.body),
+                ],
               ),
             ),
             _actions(cs),

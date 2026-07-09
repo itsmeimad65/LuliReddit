@@ -176,10 +176,22 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 ],
                 error: (e, _) => [
                   SliverToBoxAdapter(
-                      child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Center(
-                              child: Text('Could not load communities: $e')))),
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        children: [
+                          const Text("Couldn't load your communities.",
+                              textAlign: TextAlign.center),
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: () =>
+                                ref.invalidate(subscribedSubredditsProvider),
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
                 data: (list) {
                   final q = _query.trim().toLowerCase();

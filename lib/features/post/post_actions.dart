@@ -38,7 +38,7 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post,
             ),
           ListTile(
             leading: const Icon(Icons.share_outlined),
-            title: const Text('Share'),
+            title: const Text('Share link'),
             onTap: () {
               Navigator.pop(ctx);
               // Sharing is a strong interest signal.
@@ -46,6 +46,18 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post,
               ref.read(keywordStoreProvider.notifier).bumpTitle(post.title, 0.75);
               shareUrl(context, 'https://reddit.com${post.permalink}',
                   subject: post.title);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.text_snippet_outlined),
+            title: const Text('Share with title'),
+            subtitle: const Text('Includes the post title above the link'),
+            onTap: () {
+              Navigator.pop(ctx);
+              ref.read(interestStoreProvider.notifier).bump(post.subreddit, 1.5);
+              ref.read(keywordStoreProvider.notifier).bumpTitle(post.title, 0.75);
+              shareUrlWithTitle(
+                  context, 'https://reddit.com${post.permalink}', post.title);
             },
           ),
           ListTile(

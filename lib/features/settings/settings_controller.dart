@@ -50,6 +50,7 @@ class Settings {
     required this.seedColor,
     required this.blurNsfw,
     required this.defaultSort,
+    required this.defaultCommentSort,
     required this.postDisplay,
     required this.swipeActions,
     required this.trackHistory,
@@ -79,6 +80,7 @@ class Settings {
   final int seedColor; // ARGB int
   final bool blurNsfw;
   final PostSort defaultSort;
+  final String defaultCommentSort; // reddit comment sort id (confidence, top, …)
   final PostDisplay postDisplay;
   final bool swipeActions;
   final bool trackHistory;
@@ -108,6 +110,7 @@ class Settings {
     int? seedColor,
     bool? blurNsfw,
     PostSort? defaultSort,
+    String? defaultCommentSort,
     PostDisplay? postDisplay,
     bool? swipeActions,
     bool? trackHistory,
@@ -137,6 +140,7 @@ class Settings {
         seedColor: seedColor ?? this.seedColor,
         blurNsfw: blurNsfw ?? this.blurNsfw,
         defaultSort: defaultSort ?? this.defaultSort,
+        defaultCommentSort: defaultCommentSort ?? this.defaultCommentSort,
         postDisplay: postDisplay ?? this.postDisplay,
         swipeActions: swipeActions ?? this.swipeActions,
         trackHistory: trackHistory ?? this.trackHistory,
@@ -176,6 +180,7 @@ class SettingsController extends Notifier<Settings> {
       seedColor: p.getInt('seedColor') ?? AppTheme.seed.toARGB32(),
       blurNsfw: p.getBool('blurNsfw') ?? true,
       defaultSort: PostSort.values[p.getInt('defaultSort') ?? PostSort.best.index],
+      defaultCommentSort: p.getString('defaultCommentSort') ?? 'confidence',
       postDisplay:
           PostDisplay.values[p.getInt('postDisplay') ?? PostDisplay.large.index],
       swipeActions: p.getBool('swipeActions') ?? true,
@@ -234,6 +239,11 @@ class SettingsController extends Notifier<Settings> {
   void setDefaultSort(PostSort sort) {
     _prefs.setInt('defaultSort', sort.index);
     state = state.copyWith(defaultSort: sort);
+  }
+
+  void setDefaultCommentSort(String sort) {
+    _prefs.setString('defaultCommentSort', sort);
+    state = state.copyWith(defaultCommentSort: sort);
   }
 
   void setPostDisplay(PostDisplay display) {

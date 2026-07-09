@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io' show HttpClient, HttpException, SocketException;
 
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 
 import '../reddit_constants.dart';
 import '../storage/secure_store.dart';
@@ -23,6 +25,15 @@ class RedditClient {
       baseUrl: RedditConstants.oauthApiBase,
       validateStatus: (s) => s != null && s < 500,
     ));
+    // The OS silently drops pooled keep-alive sockets while the app is
+    // backgrounded (or the network changes). Reusing one makes the first
+    // request after a resume fail with "Connection closed while receiving
+    // data", so retire idle connections quickly.
+    _dio.httpClientAdapter = IOHttpClientAdapter(createHttpClient: () {
+      final client = HttpClient();
+      client.idleTimeout = const Duration(seconds: 5);
+      return client;
+    });
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         if (_webMode) {
@@ -127,31 +138,39 @@ class RedditClient {
   Future<Response<T>> get<T>(String path, {Map<String, dynamic>? query}) async {
     await _ensureConfig();
     final url = _reqUrl(path, isGet: true);
-    try {
-      // Fetch as dynamic so Dio never does the failing internal `as T` cast;
-      // we decode + re-type ourselves (Reddit occasionally returns a JSON body
-      // with a content-type Dio doesn't auto-decode).
-      final res = await _dio.get<dynamic>(url, queryParameters: query);
-      final data = _coerce(res.data);
-      if (_cacheOn && res.statusCode == 200 && data != null) {
-        _cache.write(_cacheKey(path, query), data);
-      }
-      return _retype<T>(res, data);
-    } on DioException catch (e) {
-      // Network failure → serve cached copy if we have one.
-      if (_cacheOn && _isNetworkError(e)) {
-        final cached = await _cache.read(_cacheKey(path, query));
-        if (cached != null) {
-          return Response<T>(
-            requestOptions: e.requestOptions,
-            data: cached as T,
-            statusCode: 200,
-            extra: {'fromCache': true},
-          );
+    late DioException lastError;
+    // GETs are safe to retry: a stale pooled socket dies on the first attempt,
+    // and the second one opens a fresh connection.
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        // Fetch as dynamic so Dio never does the failing internal `as T` cast;
+        // we decode + re-type ourselves (Reddit occasionally returns a JSON body
+        // with a content-type Dio doesn't auto-decode).
+        final res = await _dio.get<dynamic>(url, queryParameters: query);
+        final data = _coerce(res.data);
+        if (_cacheOn && res.statusCode == 200 && data != null) {
+          _cache.write(_cacheKey(path, query), data);
         }
+        return _retype<T>(res, data);
+      } on DioException catch (e) {
+        lastError = e;
+        if (attempt == 1 || !_isNetworkError(e)) break;
+        await Future<void>.delayed(const Duration(milliseconds: 250));
       }
-      rethrow;
     }
+    // Network failure → serve cached copy if we have one.
+    if (_cacheOn && _isNetworkError(lastError)) {
+      final cached = await _cache.read(_cacheKey(path, query));
+      if (cached != null) {
+        return Response<T>(
+          requestOptions: lastError.requestOptions,
+          data: cached as T,
+          statusCode: 200,
+          extra: {'fromCache': true},
+        );
+      }
+    }
+    throw lastError;
   }
 
   /// Decodes a String body to JSON when needed (defensive against wrong/missing
@@ -192,7 +211,11 @@ class RedditClient {
       e.type == DioExceptionType.connectionError ||
       e.type == DioExceptionType.connectionTimeout ||
       e.type == DioExceptionType.receiveTimeout ||
-      e.type == DioExceptionType.sendTimeout;
+      e.type == DioExceptionType.sendTimeout ||
+      // A dead keep-alive socket surfaces as DioExceptionType.unknown wrapping
+      // an HttpException ("Connection closed while receiving data").
+      e.error is HttpException ||
+      e.error is SocketException;
 
   Future<void> clearCache() => _cache.clear();
 

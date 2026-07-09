@@ -24,13 +24,18 @@ class LuliApp extends ConsumerStatefulWidget {
 class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
   final _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSub;
+  String? _lastLink; // last deep link we routed, to avoid handling it twice
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Warm deep links only. The cold-start link is handled by the GoRouter
-    // redirect (which maps reddit URLs), so we don't open it twice.
+    // The cold-start link is routed by the GoRouter redirect, so record it as
+    // already handled — then the stream/resume checks below only act on links
+    // that arrive later (which is what a warm launch from Google delivers).
+    _appLinks.getInitialLink().then((uri) {
+      if (uri != null) _lastLink = uri.toString();
+    });
     _linkSub = _appLinks.uriLinkStream.listen(_handleLink);
 
     // Tapping an inbox notification deep-links to the comment/message.
@@ -43,6 +48,10 @@ class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
   }
 
   void _handleLink(Uri uri) {
+    // Dedupe: the same link can arrive via both the stream and the resume check.
+    final key = uri.toString();
+    if (key == _lastLink) return;
+    _lastLink = key;
     final route = routeForRedditUrl(uri);
     if (route != null) ref.read(routerProvider).push(route);
   }
@@ -56,6 +65,11 @@ class _LuliAppState extends ConsumerState<LuliApp> with WidgetsBindingObserver {
       ref.invalidate(authControllerProvider);
       ref.invalidate(inboxControllerProvider);
       ref.invalidate(unreadCountProvider);
+      // A link tapped in the browser can resume the app without the stream
+      // firing, which used to just show whatever page we were last on.
+      _appLinks.getLatestLink().then((uri) {
+        if (uri != null && mounted) _handleLink(uri);
+      });
     }
   }
 

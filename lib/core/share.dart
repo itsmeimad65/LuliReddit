@@ -15,3 +15,10 @@ Future<void> shareUrl(BuildContext context, String url, {String? subject}) async
     // ignore — user dismissed or platform refused
   }
 }
+
+/// Shares a post as `Title` followed by the link, so recipients see what it is.
+Future<void> shareUrlWithTitle(
+    BuildContext context, String url, String title) async {
+  final text = title.trim().isEmpty ? url : '${title.trim()}\n$url';
+  await shareUrl(context, text, subject: title);
+}

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
+import '../settings/settings_controller.dart';
 
 class PostThread {
   const PostThread({
@@ -46,12 +47,17 @@ class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, Stri
   String _subreddit = '';
   String _postId = '';
   String? _focusCommentId; // set when viewing a single comment thread
-  String _sort = 'confidence';
+  // Empty until the first build seeds it from the user's default comment sort.
+  String _sort = '';
   String get sort => _sort;
   bool get isFocused => _focusCommentId != null;
 
   @override
   Future<PostThread> build(String arg) async {
+    // Seed from the user's default comment sort (changeSort overrides it).
+    if (_sort.isEmpty) {
+      _sort = ref.read(settingsControllerProvider).defaultCommentSort;
+    }
     // Key: "subreddit/postId" or "subreddit/postId/focus_<commentId>".
     final parts = arg.split('/');
     _subreddit = parts[0];
