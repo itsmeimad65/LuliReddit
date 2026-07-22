@@ -126,7 +126,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (_controller.text != q) _controller.text = q;
     FocusScope.of(context).unfocus();
     setState(() => _autocomplete = []);
-    if (saveRecent) _saveRecent(q);
+    if (saveRecent) {
+      final isPostsTab = _scopeSubreddit != null ||
+          DefaultTabController.of(context)?.index == 0;
+      if (isPostsTab) _saveRecent(q);
+    }
     setState(() {
       _loading = true;
       _query = q;

@@ -834,12 +834,14 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
     final p = widget.post;
     final cs = Theme.of(context).colorScheme;
     final iconUrl = ref.watch(subredditIconProvider)[p.subreddit];
+    if (iconUrl == null) ref.watch(subredditIconAboutProvider(p.subreddit));
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               GestureDetector(
                 onTap: () => context.push('/r/${p.subreddit}'),
@@ -864,19 +866,23 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                 ),
               ),
               const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () => context.push('/r/${p.subreddit}'),
-                child: Text(p.subredditPrefixed,
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700, color: cs.primary)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    onTap: () => context.push('/r/${p.subreddit}'),
+                    child: Text(p.subredditPrefixed,
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, color: cs.primary)),
+                  ),
+                  GestureDetector(
+                    onTap: () => context.push('/u/${p.author}'),
+                    child: Text('u/${p.author} · ${timeAgo(p.created)}',
+                        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                  ),
+                ],
               ),
             ],
-          ),
-          const SizedBox(height: 2),
-          GestureDetector(
-            onTap: () => context.push('/u/${p.author}'),
-            child: Text('u/${p.author} · ${timeAgo(p.created)}',
-                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
           ),
           const SizedBox(height: 12),
           Text(p.title,
