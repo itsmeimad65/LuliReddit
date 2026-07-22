@@ -39,6 +39,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final subs = ref.watch(subscribedSubredditsProvider);
+    ref.listen(subscribedSubredditsProvider, (_, next) {
+      next.whenData((list) => ref.read(subredditIconProvider.notifier).setAll(list));
+    });
 
     // Re-tapping the Explore tab scrolls back to top.
     ref.listen<int>(tabReselectProvider(1), (_, __) {

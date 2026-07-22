@@ -13,6 +13,7 @@ class Comment with _$Comment {
     required String fullname, // t1_xxx
     @Default('') String parentId, // t1_xxx or t3_xxx
     required String author,
+    String? authorIconUrl,
     required String body,
     required int score,
     required DateTime created,
@@ -75,6 +76,7 @@ class Comment with _$Comment {
       fullname: d['name'] as String? ?? 't1_${d['id']}',
       parentId: d['parent_id'] as String? ?? '',
       author: d['author'] as String? ?? '[deleted]',
+      authorIconUrl: d['author_icon_url'] as String?,
       body: d['body'] as String? ?? '',
       score: (d['score'] as num?)?.toInt() ?? 0,
       created: DateTime.fromMillisecondsSinceEpoch(

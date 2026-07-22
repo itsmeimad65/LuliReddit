@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -21,14 +24,20 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
   bool _loading = false;
+  bool _loadingMore = false;
   String _query = '';
   String _sort = 'relevance';
   String _time = 'all';
+  String? _after;
+  String? _scopeSubreddit;
   List<Post> _posts = [];
   List<Subreddit> _subs = [];
   List<RedditUser> _users = [];
   List<String> _recent = [];
+  List<Subreddit> _autocomplete = [];
+  Timer? _autoTimer;
 
   static const _sorts = {
     'relevance': 'Relevance',
@@ -51,6 +60,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void initState() {
     super.initState();
     _recent = ref.read(sharedPrefsProvider).getStringList(_recentKey) ?? [];
+    if (widget.initialSubreddit != null) {
+      _scopeSubreddit = widget.initialSubreddit;
+    }
     final q = widget.initialQuery?.trim() ?? '';
     if (q.isNotEmpty) {
       _controller.text = q;
@@ -59,8 +71,32 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
   }
 
+  void _onSearchChanged(String q) {
+    _autoTimer?.cancel();
+    if (q.trim().isEmpty || q.trim().length < 2) {
+      if (_autocomplete.isNotEmpty) setState(() => _autocomplete = []);
+      return;
+    }
+    _autoTimer =
+        Timer(const Duration(milliseconds: 300), () => _fetchAutocomplete(q.trim()));
+  }
+
+  Future<void> _fetchAutocomplete(String q) async {
+    try {
+      final results =
+          await ref.read(redditRepositoryProvider).subredditAutocomplete(q);
+      if (mounted) setState(() => _autocomplete = results);
+    } catch (_) {}
+  }
+
   void _saveRecent(String q) {
     final list = [q, ..._recent.where((e) => e != q)].take(12).toList();
+    ref.read(sharedPrefsProvider).setStringList(_recentKey, list);
+    setState(() => _recent = list);
+  }
+
+  void _removeRecent(String q) {
+    final list = _recent.where((e) => e != q).toList();
     ref.read(sharedPrefsProvider).setStringList(_recentKey, list);
     setState(() => _recent = list);
   }
@@ -68,6 +104,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
+    _autoTimer?.cancel();
     super.dispose();
   }
 
@@ -86,28 +124,37 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (q.isEmpty) return;
     if (_controller.text != q) _controller.text = q;
     FocusScope.of(context).unfocus();
+    setState(() => _autocomplete = []);
     if (saveRecent) _saveRecent(q);
     setState(() {
       _loading = true;
       _query = q;
+      _after = null;
+      _posts = [];
+      _subs = [];
+      _users = [];
     });
     final repo = ref.read(redditRepositoryProvider);
     try {
       final results = await Future.wait([
         repo.searchPosts(q,
-            subreddit: widget.initialSubreddit, sort: _sort, time: _time),
-        if (widget.initialSubreddit == null)
+            subreddit: _scopeSubreddit, sort: _sort, time: _time),
+        if (_scopeSubreddit == null)
           repo.searchSubreddits(q)
         else
           Future.value(<Subreddit>[]),
-        if (widget.initialSubreddit == null)
+        if (_scopeSubreddit == null)
           repo.searchUsers(q)
         else
           Future.value(<RedditUser>[]),
       ]);
       if (!mounted) return;
+      final listing = results[0] as dynamic;
+      ref.read(subredditIconProvider.notifier).setAll(results[1] as List<Subreddit>);
+      ref.read(userIconProvider.notifier).setAll(results[2] as List<RedditUser>);
       setState(() {
-        _posts = (results[0] as dynamic).items as List<Post>;
+        _posts = listing.items as List<Post>;
+        _after = listing.after as String?;
         _subs = results[1] as List<Subreddit>;
         _users = results[2] as List<RedditUser>;
         _loading = false;
@@ -117,10 +164,32 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
   }
 
+  Future<void> _loadMorePosts() async {
+    if (_loadingMore || _after == null) return;
+    setState(() => _loadingMore = true);
+    try {
+      final listing = await ref.read(redditRepositoryProvider).searchPosts(
+        _query,
+        subreddit: _scopeSubreddit,
+        sort: _sort,
+        time: _time,
+        after: _after,
+      );
+      if (!mounted) return;
+      setState(() {
+        _posts.addAll(listing.items as List<Post>);
+        _after = listing.after as String?;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final restricted = widget.initialSubreddit != null;
+    final restricted = _scopeSubreddit != null;
     return DefaultTabController(
       length: restricted ? 1 : 3,
       child: Scaffold(
@@ -128,13 +197,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           titleSpacing: 8,
           title: TextField(
             controller: _controller,
+            focusNode: _focusNode,
             autofocus: (widget.initialQuery?.trim().isEmpty ?? true),
             textInputAction: TextInputAction.search,
             onSubmitted: _search,
-            onChanged: (_) => setState(() {}),
+            onChanged: (q) {
+              setState(() {});
+              _onSearchChanged(q);
+            },
             decoration: InputDecoration(
               hintText: restricted
-                  ? 'Search in r/${widget.initialSubreddit}'
+                  ? 'Search in r/$_scopeSubreddit'
                   : 'Search Reddit',
               isDense: true,
               filled: true,
@@ -169,17 +242,70 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   Tab(text: 'Users'),
                 ]),
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _query.isEmpty
-                ? _empty(cs)
-                : TabBarView(
-                    children: [
-                      _postsTab(),
-                      if (!restricted) _subsTab(),
-                      if (!restricted) _usersTab(),
-                    ],
+        body: Stack(
+          children: [
+            _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _query.isEmpty
+                    ? _empty(cs)
+                    : TabBarView(
+                        children: [
+                          _postsTab(),
+                          if (!restricted) _subsTab(),
+                          if (!restricted) _usersTab(),
+                        ],
+                      ),
+            // Autocomplete overlay
+            if (_autocomplete.isNotEmpty && _focusNode.hasFocus)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Material(
+                  elevation: 4,
+                  color: cs.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 320),
+                    child: ListView.builder(
+                      padding: EdgeInsets.zero,
+                      shrinkWrap: true,
+                      itemCount: _autocomplete.length,
+                      itemBuilder: (_, i) {
+                        final s = _autocomplete[i];
+                        return ListTile(
+                          dense: true,
+                          leading: CircleAvatar(
+                            radius: 16,
+                            backgroundColor: cs.secondaryContainer,
+                            backgroundImage: s.iconUrl != null
+                                ? CachedNetworkImageProvider(s.iconUrl!)
+                                : null,
+                            child: s.iconUrl == null
+                                ? Text(s.name[0].toUpperCase(),
+                                    style: const TextStyle(fontSize: 13))
+                                : null,
+                          ),
+                          title: Text(s.namePrefixed),
+                          subtitle: Text(
+                              '${compactNumber(s.subscribers)} members'),
+                          onTap: () {
+                            _scopeSubreddit = s.name;
+                            ref.read(subredditIconProvider.notifier)
+                                .setIcon(s.name, s.iconUrl);
+                            _controller.text = '';
+                            _autocomplete = [];
+                            _focusNode.unfocus();
+                            setState(() {});
+                          },
+                        );
+                      },
+                    ),
                   ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -223,12 +349,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ListTile(
             leading: const Icon(Icons.history_rounded),
             title: Text(q),
-            trailing: IconButton(
-              icon: const Icon(Icons.north_west_rounded, size: 18),
-              onPressed: () {
-                _controller.text = q;
-                _search(q, saveRecent: false);
-              },
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.north_west_rounded, size: 18),
+                  tooltip: 'Search',
+                  onPressed: () {
+                    _controller.text = q;
+                    _search(q, saveRecent: false);
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  tooltip: 'Remove',
+                  onPressed: () => _removeRecent(q),
+                ),
+              ],
             ),
             onTap: () => _search(q),
           ),
@@ -237,11 +374,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _filterBar() {
+    final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
       child: Row(
         children: [
+          // Scope picker
+          ActionChip(
+            avatar: Icon(_scopeSubreddit != null
+                ? Icons.lock_rounded
+                : Icons.public_rounded, size: 16),
+            label: Text(_scopeSubreddit != null
+                ? 'r/$_scopeSubreddit'
+                : 'All'),
+            onPressed: () => _pickScope(),
+          ),
+          const SizedBox(width: 8),
           for (final e in _sorts.entries) ...[
             ChoiceChip(
               label: Text(e.value),
@@ -271,6 +420,91 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             ),
           ],
+          const SizedBox(width: 8),
+        ],
+      ),
+    );
+  }
+
+  void _pickScope() {
+    final qCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: qCtrl,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        hintText: 'Search subreddit…',
+                        isDense: true,
+                      ),
+                      onSubmitted: (q) async {
+                        if (q.trim().isEmpty) return;
+                        final subs =
+                            await ref.read(redditRepositoryProvider).searchSubreddits(q.trim());
+                        if (!ctx.mounted) return;
+                        Navigator.of(ctx).pop();
+                        _pickSubreddit(subs);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  setState(() => _scopeSubreddit = null);
+                },
+                child: const Text('All subreddits'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _pickSubreddit(List<Subreddit> subs) {
+    if (subs.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Pick a subreddit'),
+        children: [
+          for (final s in subs.take(20))
+            SimpleDialogOption(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                setState(() => _scopeSubreddit = s.name);
+                ref.read(subredditIconProvider.notifier).setIcon(s.name, s.iconUrl);
+                if (_query.isNotEmpty) _search(_query, saveRecent: false);
+              },
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 14,
+                    backgroundImage: s.iconUrl != null
+                        ? CachedNetworkImageProvider(s.iconUrl!)
+                        : null,
+                    child: s.iconUrl == null
+                        ? Text(s.name[0].toUpperCase(),
+                            style: const TextStyle(fontSize: 11))
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(s.namePrefixed),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -289,9 +523,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ])
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(10, 6, 10, 130),
-                      itemCount: _posts.length,
+                      itemCount: _posts.length + (_after != null ? 1 : 0),
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) => PostCard(post: _posts[i]),
+                      itemBuilder: (_, i) {
+                        if (i >= _posts.length) {
+                          _loadMorePosts();
+                          return const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(
+                                child: SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(strokeWidth: 2))),
+                          );
+                        }
+                        final p = _posts[i];
+                        return PostCard(post: p);
+                      },
                     ),
             ),
           ),
@@ -316,8 +564,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 leading: CircleAvatar(
                   backgroundColor: cs.secondaryContainer,
                   foregroundColor: cs.onSecondaryContainer,
-                  child:
-                      Text(s.name.isNotEmpty ? s.name[0].toUpperCase() : '?'),
+                  backgroundImage: s.iconUrl != null
+                      ? CachedNetworkImageProvider(s.iconUrl!)
+                      : null,
+                  child: s.iconUrl == null
+                      ? Text(s.name.isNotEmpty ? s.name[0].toUpperCase() : '?')
+                      : null,
                 ),
                 title: Text(s.namePrefixed),
                 subtitle: Text('${compactNumber(s.subscribers)} members'),
@@ -346,8 +598,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 leading: CircleAvatar(
                   backgroundColor: cs.secondaryContainer,
                   foregroundColor: cs.onSecondaryContainer,
-                  child:
-                      Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?'),
+                  backgroundImage: u.iconUrl != null
+                      ? CachedNetworkImageProvider(u.iconUrl!)
+                      : null,
+                  child: u.iconUrl == null
+                      ? Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?')
+                      : null,
                 ),
                 title: Text('u/${u.name}'),
                 subtitle: Text('${compactNumber(u.linkKarma + u.commentKarma)} karma'),

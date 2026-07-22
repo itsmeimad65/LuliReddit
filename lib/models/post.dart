@@ -159,7 +159,21 @@ PostType _detectType(Map<String, dynamic> d, bool isVideo, bool hasGallery) {
   final host = (Uri.tryParse(rawUrl)?.host ?? '').toLowerCase();
   if (host == 'i.redd.it' ||
       host == 'preview.redd.it' ||
-      host == 'i.imgur.com') {
+      host == 'i.imgur.com' ||
+      host == 'imgur.com' ||
+      host == 'www.imgur.com') {
+    return PostType.image;
+  }
+  if (host == 'redgifs.com' || host == 'www.redgifs.com') {
+    return PostType.video;
+  }
+  // Fallback: the domain field from the API is sometimes more reliable than
+  // the URL for Reddit-hosted media.
+  final postDomain = (d['domain'] as String? ?? '').toLowerCase();
+  if (postDomain == 'i.redd.it' ||
+      postDomain == 'preview.redd.it' ||
+      postDomain == 'i.imgur.com' ||
+      postDomain == 'imgur.com') {
     return PostType.image;
   }
   return PostType.link;

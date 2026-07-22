@@ -10,7 +10,6 @@ import '../../core/analytics.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/tap_guard.dart';
-import 'inline_video.dart';
 import 'post_overrides.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/post.dart';
@@ -476,27 +475,6 @@ class _PostCardState extends ConsumerState<PostCard> {
     }
     final url =
         _cardImg(p) ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
-    // Inline autoplay for videos (when enabled and not NSFW-blurred).
-    if (p.type == PostType.video &&
-        !blur &&
-        ref.watch(settingsControllerProvider).autoplayMedia) {
-      final vurl = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
-      if (vurl.isNotEmpty && !vurl.toLowerCase().endsWith('.gif')) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: InlineVideo(
-              key: ValueKey('iv_${p.id}'),
-              url: vurl,
-              poster: url,
-              height: height,
-              onTap: _openMedia,
-            ),
-          ),
-        );
-      }
-    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: NsfwBlur(
@@ -597,6 +575,12 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   Widget _header(ColorScheme cs) {
     final p = widget.post;
+    final cached = ref.watch(subredditIconProvider);
+    final iconUrl = cached[p.subreddit];
+    // Lazy-fetch icon when not cached yet
+    if (iconUrl == null) {
+      ref.read(subredditIconAboutProvider(p.subreddit));
+    }
     return Row(
       children: [
         GestureDetector(
@@ -604,13 +588,19 @@ class _PostCardState extends ConsumerState<PostCard> {
           child: CircleAvatar(
             radius: 14,
             backgroundColor: cs.secondaryContainer,
-            child: Text(
-              p.subreddit.isNotEmpty ? p.subreddit[0].toUpperCase() : '?',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: cs.onSecondaryContainer),
-            ),
+            foregroundColor: cs.onSecondaryContainer,
+            backgroundImage: iconUrl != null
+                ? CachedNetworkImageProvider(iconUrl)
+                : null,
+            child: iconUrl == null
+                ? Text(
+                    p.subreddit.isNotEmpty ? p.subreddit[0].toUpperCase() : '?',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: cs.onSecondaryContainer),
+                  )
+                : null,
           ),
         ),
         const SizedBox(width: 10),

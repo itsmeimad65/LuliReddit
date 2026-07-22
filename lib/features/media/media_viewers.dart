@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_view/photo_view.dart';
@@ -13,8 +14,10 @@ import 'package:photo_view/photo_view_gallery.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../core/network/redgifs_api.dart';
 import '../../core/share.dart';
 import '../../models/post.dart';
+import '../settings/settings_controller.dart';
 
 /// A left-edge swipe-to-go-back strip (iOS-style), safe to overlay on viewers
 /// without stealing PhotoView pan / gallery paging (only the left 24px).
@@ -452,7 +455,7 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
   }
 }
 
-class _VideoViewer extends StatefulWidget {
+class _VideoViewer extends ConsumerStatefulWidget {
   const _VideoViewer(
       {required this.url, this.title, this.downloadUrl, this.externalUrl});
   final String url;
@@ -461,28 +464,34 @@ class _VideoViewer extends StatefulWidget {
   final String? externalUrl; // original link, for "open in browser" fallback
 
   @override
-  State<_VideoViewer> createState() => _VideoViewerState();
+  ConsumerState<_VideoViewer> createState() => _VideoViewerState();
 }
 
-class _VideoViewerState extends State<_VideoViewer> {
+class _VideoViewerState extends ConsumerState<_VideoViewer> {
   VideoPlayerController? _video;
   String? _error;
   bool _controls = true;
+  late bool _muted;
   Timer? _hideTimer;
 
   @override
   void initState() {
     super.initState();
+    _muted = ref.read(settingsControllerProvider).muteVideos;
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
     _init();
   }
 
   Future<void> _init() async {
     try {
-      final v = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      final url = RedgifsApi.isRedgifsUrl(widget.url)
+          ? await RedgifsApi.resolveUrl(widget.url).catchError((_) => widget.url)
+          : widget.url;
+      final v = VideoPlayerController.networkUrl(Uri.parse(url));
       await v.initialize();
       if (!mounted) return;
       await v.setLooping(true);
+      v.setVolume(_muted ? 0 : 1);
       await v.play();
       setState(() => _video = v);
       _scheduleHide();
@@ -511,6 +520,12 @@ class _VideoViewerState extends State<_VideoViewer> {
     final v = _video;
     if (v == null) return;
     setState(() => v.value.isPlaying ? v.pause() : v.play());
+    _scheduleHide();
+  }
+
+  void _toggleMute() {
+    setState(() => _muted = !_muted);
+    _video?.setVolume(_muted ? 0 : 1);
     _scheduleHide();
   }
 
@@ -611,6 +626,29 @@ class _VideoViewerState extends State<_VideoViewer> {
                   : null,
               downloadIsVideo: true,
             ),
+          // Persistent mute button (bottom-right, always visible).
+          if (v != null)
+            Positioned(
+              bottom: 100,
+              right: 12,
+              child: GestureDetector(
+                onTap: _toggleMute,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Colors.black38,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _muted
+                        ? Icons.volume_off_rounded
+                        : Icons.volume_up_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
           const _EdgeBack(),
         ],
       ),
@@ -622,8 +660,7 @@ class _VideoViewerState extends State<_VideoViewer> {
       children: [
         // Center transport: −10s · play/pause · +10s.
         Positioned.fill(
-          child: Container(
-            color: Colors.black26,
+          child: Center(
             child: ValueListenableBuilder<VideoPlayerValue>(
               valueListenable: v,
               builder: (_, value, __) => Row(
@@ -649,7 +686,16 @@ class _VideoViewerState extends State<_VideoViewer> {
           left: 0,
           right: 0,
           bottom: 0,
-          child: SafeArea(
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [Colors.black54, Colors.transparent],
+                stops: [0.0, 1.0],
+              ),
+            ),
+            child: SafeArea(
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
@@ -688,6 +734,7 @@ class _VideoViewerState extends State<_VideoViewer> {
             ),
           ),
         ),
+      ),
       ],
     );
   }
@@ -697,11 +744,11 @@ class _VideoViewerState extends State<_VideoViewer> {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
-        width: big ? 72 : 56,
-        height: big ? 72 : 56,
+        width: big ? 56 : 44,
+        height: big ? 56 : 44,
         decoration: const BoxDecoration(
-            color: Colors.black45, shape: BoxShape.circle),
-        child: Icon(icon, color: Colors.white, size: big ? 40 : 28),
+            color: Colors.black26, shape: BoxShape.circle),
+        child: Icon(icon, color: Colors.white, size: big ? 32 : 22),
       ),
     );
   }

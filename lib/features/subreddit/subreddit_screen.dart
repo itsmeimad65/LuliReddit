@@ -28,6 +28,9 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
   @override
   Widget build(BuildContext context) {
     final about = ref.watch(subredditAboutProvider(widget.name));
+    ref.listen(subredditAboutProvider(widget.name), (_, next) {
+      next.whenData((s) => ref.read(subredditIconProvider.notifier).setIcon(s.name, s.iconUrl));
+    });
     return Scaffold(
       appBar: AppBar(
         title: Text('r/${widget.name}'),
@@ -39,7 +42,7 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
           IconButton(
             tooltip: 'About & rules',
             icon: const Icon(Icons.info_outline_rounded),
-            onPressed: () => _showAbout(context),
+            onPressed: () => Scaffold.of(context).openEndDrawer(),
           ),
           IconButton(
             icon: const Icon(Icons.share_outlined),
@@ -47,6 +50,13 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
                 shareUrl(context, 'https://reddit.com/r/${widget.name}'),
           ),
         ],
+      ),
+      endDrawer: Drawer(
+        child: about.when(
+          loading: () => const DrawerHeader(child: LinearProgressIndicator()),
+          error: (_, __) => const SizedBox.shrink(),
+          data: (s) => _drawerContent(context, s),
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => context.push('/submit?sr=${widget.name}'),
@@ -75,79 +85,120 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
         builder: (ctx, scroll) {
           final about =
               ref.read(subredditAboutProvider(widget.name)).valueOrNull;
-          return ListView(
-            controller: scroll,
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-            children: [
-              Text('r/${widget.name}',
-                  style: Theme.of(ctx)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w800)),
-              if (about != null && about.title.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(about.title,
-                      style: Theme.of(ctx).textTheme.bodyMedium),
-                ),
-              if (about != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text('${compactNumber(about.subscribers)} members',
-                      style: TextStyle(
-                          color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
-                ),
-              if (about != null && about.description.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(about.description),
-              ],
-              const SizedBox(height: 18),
-              Text('Rules',
-                  style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
-                      color: Theme.of(ctx).colorScheme.primary,
-                      fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4),
-              FutureBuilder<List<(String, String)>>(
-                future: ref
-                    .read(redditRepositoryProvider)
-                    .getSubredditRules(widget.name),
-                builder: (ctx, snap) {
-                  if (snap.connectionState != ConnectionState.done) {
-                    return const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator()));
-                  }
-                  final rules = snap.data ?? const [];
-                  if (rules.isEmpty) return const Text('No rules listed.');
-                  return Column(
-                    children: [
-                      for (var i = 0; i < rules.length; i++)
-                        Theme(
-                          data: Theme.of(ctx)
-                              .copyWith(dividerColor: Colors.transparent),
-                          child: ExpansionTile(
-                            tilePadding: EdgeInsets.zero,
-                            title: Text('${i + 1}. ${rules[i].$1}',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600)),
-                            childrenPadding:
-                                const EdgeInsets.only(bottom: 12),
-                            children: [
-                              if (rules[i].$2.isNotEmpty)
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(rules[i].$2),
-                                ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          );
+          return _drawerContent(ctx, about);
         },
+      ),
+    );
+  }
+
+  Widget _drawerContent(BuildContext context, Subreddit? about) {
+    final cs = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        children: [
+          if (about != null) ...[
+            if (about.bannerUrl != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: CachedNetworkImage(
+                  imageUrl: about.bannerUrl!,
+                  height: 90,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                ),
+              ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: cs.secondaryContainer,
+                  foregroundColor: cs.onSecondaryContainer,
+                  backgroundImage: about.iconUrl != null
+                      ? CachedNetworkImageProvider(about.iconUrl!)
+                      : null,
+                  child: about.iconUrl == null
+                      ? Text(about.name.isNotEmpty
+                          ? about.name[0].toUpperCase()
+                          : '?')
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(about.namePrefixed,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800)),
+                      Text('${compactNumber(about.subscribers)} members',
+                          style: TextStyle(color: cs.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (about.title.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(about.title,
+                  style: Theme.of(context).textTheme.bodyMedium),
+            ],
+            if (about.description.isNotEmpty) ...[
+              const Divider(height: 24),
+              Text('About',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: cs.primary, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(about.description),
+            ],
+            const Divider(height: 24),
+            Text('Rules',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: cs.primary, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+          ],
+          FutureBuilder<List<(String, String)>>(
+            future: ref
+                .read(redditRepositoryProvider)
+                .getSubredditRules(widget.name),
+            builder: (ctx, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator()));
+              }
+              final rules = snap.data ?? const [];
+              if (rules.isEmpty) return const Text('No rules listed.');
+              return Column(
+                children: [
+                  for (var i = 0; i < rules.length; i++)
+                    Theme(
+                      data: Theme.of(ctx)
+                          .copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        title: Text('${i + 1}. ${rules[i].$1}',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600)),
+                        childrenPadding: const EdgeInsets.only(bottom: 12),
+                        children: [
+                          if (rules[i].$2.isNotEmpty)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(rules[i].$2),
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
     );
   }

@@ -508,6 +508,19 @@ class RedditRepository {
     ];
   }
 
+  Future<List<Subreddit>> subredditAutocomplete(String query) async {
+    final res = await _client.get<Map<String, dynamic>>(
+      '/api/subreddit_autocomplete_v2',
+      query: {'query': query, 'include_profiles': false, 'limit': 8},
+    );
+    final children =
+        ((res.data?['data'] as Map?)?['children'] as List?) ?? const [];
+    return [
+      for (final c in children)
+        Subreddit.fromData((c as Map)['data'] as Map<String, dynamic>)
+    ];
+  }
+
   /// Drops the in-memory subscription cache (e.g. on account switch).
   void clearSubsCache() {
     _subsCache = null;

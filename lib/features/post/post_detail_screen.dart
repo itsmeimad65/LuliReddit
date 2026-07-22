@@ -2,11 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
-
-import '../history/interest_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/format.dart';
@@ -14,6 +12,7 @@ import '../../core/providers.dart';
 import '../../core/deep_links.dart';
 import '../../core/media_links.dart';
 import '../../core/share.dart';
+import '../history/interest_store.dart';
 import '../../core/widgets/markdown_style.dart';
 import '../../data/ai_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -834,16 +833,44 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
   Widget build(BuildContext context) {
     final p = widget.post;
     final cs = Theme.of(context).colorScheme;
+    final iconUrl = ref.watch(subredditIconProvider)[p.subreddit];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GestureDetector(
-            onTap: () => context.push('/r/${p.subreddit}'),
-            child: Text(p.subredditPrefixed,
-                style: TextStyle(
-                    fontWeight: FontWeight.w700, color: cs.primary)),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => context.push('/r/${p.subreddit}'),
+                child: CircleAvatar(
+                  radius: 14,
+                  backgroundColor: cs.secondaryContainer,
+                  foregroundColor: cs.onSecondaryContainer,
+                  backgroundImage: iconUrl != null
+                      ? CachedNetworkImageProvider(iconUrl)
+                      : null,
+                  child: iconUrl == null
+                      ? Text(
+                          p.subreddit.isNotEmpty
+                              ? p.subreddit[0].toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: cs.onSecondaryContainer),
+                        )
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => context.push('/r/${p.subreddit}'),
+                child: Text(p.subredditPrefixed,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, color: cs.primary)),
+              ),
+            ],
           ),
           const SizedBox(height: 2),
           GestureDetector(
@@ -1106,6 +1133,11 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
     final depth = comment.depth;
     final indent = depth.clamp(0, 6) * 12.0;
 
+    // Seed user icon into cache when comment has one
+    if (comment.authorIconUrl != null) {
+      ref.read(userIconProvider.notifier).setIcon(comment.author, comment.authorIconUrl);
+    }
+
     // "Load more replies" node — a light indented row, not a card.
     if (comment.isMore) {
       return Padding(
@@ -1189,7 +1221,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _AuthorDot(name: comment.author, size: 20),
+                          _UserAvatar(comment: comment, size: 20),
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
@@ -1386,10 +1418,11 @@ class _CommentActionBtn extends StatelessWidget {
   }
 }
 
-/// Small colored avatar with the author's initial (color derived from name).
-class _AuthorDot extends StatelessWidget {
-  const _AuthorDot({required this.name, this.size = 20});
-  final String name;
+/// Comment author avatar — shows cached user icon when available,
+/// falls back to a colored initial.
+class _UserAvatar extends ConsumerWidget {
+  const _UserAvatar({required this.comment, this.size = 20});
+  final Comment comment;
   final double size;
 
   static const _palette = [
@@ -1402,27 +1435,46 @@ class _AuthorDot extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
-    final clean = name.replaceFirst('u/', '');
-    final deleted = clean.isEmpty || clean.startsWith('[');
+  Widget build(BuildContext context, WidgetRef ref) {
+    final name = comment.author.replaceFirst('u/', '');
+    final deleted = name.isEmpty || name.startsWith('[');
+    if (deleted) {
+      return Container(
+        width: size, height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: Theme.of(context).colorScheme.outline,
+            shape: BoxShape.circle),
+        child: Text('?', style: TextStyle(color: Colors.white,
+            fontWeight: FontWeight.w700, fontSize: size * 0.5)),
+      );
+    }
+
+    final cached = ref.watch(userIconProvider)[comment.author];
+    final iconUrl = cached ?? comment.authorIconUrl;
+    if (iconUrl != null) {
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+        backgroundImage: CachedNetworkImageProvider(iconUrl),
+      );
+    }
+
+    // Lazy-fetch profile to get icon
+    ref.read(userAboutProvider(comment.author));
+
     var h = 0;
-    for (final r in clean.codeUnits) {
+    for (final r in comment.author.codeUnits) {
       h = (h * 31 + r) & 0x7fffffff;
     }
-    final color =
-        deleted ? Theme.of(context).colorScheme.outline : _palette[h % _palette.length];
+    final color = _palette[h % _palette.length];
     return Container(
       width: size,
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      child: Text(
-        deleted ? '?' : clean[0].toUpperCase(),
-        style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: size * 0.5),
-      ),
+      child: Text(name[0].toUpperCase(),
+          style: TextStyle(color: Colors.white,
+              fontWeight: FontWeight.w700, fontSize: size * 0.5)),
     );
   }
 }

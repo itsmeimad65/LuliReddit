@@ -1,0 +1,69 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      beta:
+        type: boolean
+        description: Prerelease
+        default: false
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: ${{ runner.os }}-pub-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*', 'android/**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(grep -oP "^version: [^\+]+" pubspec.yaml | tail -c +10)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Configure signing
+        working-directory: android
+        run: |
+          printf 'storeFile=release-key.jks\nstorePassword=android\nkeyAlias=release\nkeyPassword=android\n' > key.properties
+
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: flutter build apk --release
+
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ steps.version.outputs.tag }}
+          commit: ${{ github.sha }}
+          prerelease: ${{ inputs.beta }}
+          generateReleaseNotes: true
+          artifacts: build/app/outputs/flutter-apk/app-release.apk
+          skipIfReleaseExists: true
