@@ -201,6 +201,12 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             onTap: () => _pickSort(context, ctrl, s.defaultSort),
           ),
           ListTile(
+            leading: const Icon(Icons.subdirectory_arrow_right_rounded),
+            title: const Text('Subreddit default sort'),
+            subtitle: Text(s.subredditDefaultSort.label),
+            onTap: () => _pickSubredditSort(context, ctrl, s.subredditDefaultSort),
+          ),
+          ListTile(
             leading: const Icon(Icons.forum_outlined),
             title: const Text('Default comment sort'),
             subtitle:
@@ -269,6 +275,13 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             subtitle: const Text('Play videos muted as you scroll the feed'),
             value: s.autoplayMedia,
             onChanged: ctrl.setAutoplayMedia,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.volume_off_outlined),
+            title: const Text('Mute videos by default'),
+            subtitle: const Text('Start videos muted in the full-screen player'),
+            value: s.muteVideos,
+            onChanged: ctrl.setMuteVideos,
           ),
           const Divider(),
           _section(context, 'Power-user features'),
@@ -748,6 +761,33 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                   value: m,
                   title: Text(m.label),
                   subtitle: Text(m.description),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _pickSubredditSort(
+      BuildContext context, SettingsController ctrl, PostSort current) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: RadioGroup<PostSort>(
+          groupValue: current,
+          onChanged: (v) {
+            if (v != null) ctrl.setSubredditDefaultSort(v);
+            Navigator.pop(ctx);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final sort in PostSort.values)
+                RadioListTile<PostSort>(
+                  value: sort,
+                  title: Text(sort.label),
                 ),
             ],
           ),

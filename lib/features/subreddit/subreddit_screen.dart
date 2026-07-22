@@ -28,6 +28,9 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
   @override
   Widget build(BuildContext context) {
     final about = ref.watch(subredditAboutProvider(widget.name));
+    ref.listen(subredditAboutProvider(widget.name), (_, next) {
+      next.whenData((s) => ref.read(subredditIconProvider.notifier).setIcon(s.name, s.iconUrl));
+    });
     return Scaffold(
       appBar: AppBar(
         title: Text('r/${widget.name}'),

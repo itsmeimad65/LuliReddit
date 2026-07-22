@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -63,6 +65,8 @@ class Settings {
     required this.subsCacheMinutes,
     required this.textScale,
     required this.autoplayMedia,
+    required this.muteVideos,
+    required this.subredditDefaultSort,
     required this.showApiUsage,
     required this.notifyInbox,
     required this.topBarMode,
@@ -93,6 +97,8 @@ class Settings {
   final int subsCacheMinutes; // how long to keep the subs cache
   final double textScale; // global text size multiplier (0.8–1.4)
   final bool autoplayMedia; // autoplay videos/GIFs in feeds
+  final bool muteVideos; // start videos muted by default
+  final PostSort subredditDefaultSort; // default sort for subreddit feeds
   final bool showApiUsage; // show API usage instead of search on Posts screen
   final bool notifyInbox; // background-poll the inbox + local notifications
   final TopBarMode topBarMode; // Posts-screen action layout
@@ -123,6 +129,8 @@ class Settings {
     int? subsCacheMinutes,
     double? textScale,
     bool? autoplayMedia,
+    bool? muteVideos,
+    PostSort? subredditDefaultSort,
     bool? showApiUsage,
     bool? notifyInbox,
     TopBarMode? topBarMode,
@@ -153,6 +161,8 @@ class Settings {
         subsCacheMinutes: subsCacheMinutes ?? this.subsCacheMinutes,
         textScale: textScale ?? this.textScale,
         autoplayMedia: autoplayMedia ?? this.autoplayMedia,
+        muteVideos: muteVideos ?? this.muteVideos,
+        subredditDefaultSort: subredditDefaultSort ?? this.subredditDefaultSort,
         showApiUsage: showApiUsage ?? this.showApiUsage,
         notifyInbox: notifyInbox ?? this.notifyInbox,
         topBarMode: topBarMode ?? this.topBarMode,
@@ -194,6 +204,9 @@ class SettingsController extends Notifier<Settings> {
       subsCacheMinutes: p.getInt('subsCacheMinutes') ?? 10,
       textScale: p.getDouble('textScale') ?? 1.0,
       autoplayMedia: p.getBool('autoplayMedia') ?? true,
+      muteVideos: p.getBool('muteVideos') ?? true,
+      subredditDefaultSort: PostSort
+          .values[p.getInt('subredditDefaultSort') ?? PostSort.hot.index],
       showApiUsage: p.getBool('showApiUsage') ?? false,
       notifyInbox: p.getBool('notifyInbox') ?? false,
       // Default to Expandable. Old installs may have stored the removed
@@ -304,6 +317,49 @@ class SettingsController extends Notifier<Settings> {
   void setAutoplayMedia(bool v) {
     _prefs.setBool('autoplayMedia', v);
     state = state.copyWith(autoplayMedia: v);
+  }
+
+  void setMuteVideos(bool v) {
+    _prefs.setBool('muteVideos', v);
+    state = state.copyWith(muteVideos: v);
+  }
+
+  void setSubredditDefaultSort(PostSort sort) {
+    _prefs.setInt('subredditDefaultSort', sort.index);
+    state = state.copyWith(subredditDefaultSort: sort);
+  }
+
+  static const _subredditSortsKey = 'subredditSorts';
+
+  Map<String, int> _loadSubredditSorts() {
+    final raw = _prefs.getString(_subredditSortsKey);
+    if (raw == null) return {};
+    return (jsonDecode(raw) as Map<String, dynamic>)
+        .map((k, v) => MapEntry(k, v as int));
+  }
+
+  void _saveSubredditSorts(Map<String, int> sorts) {
+    _prefs.setString(_subredditSortsKey, jsonEncode(sorts));
+  }
+
+  PostSort? getSubredditSort(String subreddit) {
+    final sorts = _loadSubredditSorts();
+    final idx = sorts[subreddit.toLowerCase()];
+    return idx != null && idx >= 0 && idx < PostSort.values.length
+        ? PostSort.values[idx]
+        : null;
+  }
+
+  void rememberSubredditSort(String subreddit, PostSort sort) {
+    final sorts = _loadSubredditSorts();
+    sorts[subreddit.toLowerCase()] = sort.index;
+    _saveSubredditSorts(sorts);
+  }
+
+  void forgetSubredditSort(String subreddit) {
+    final sorts = _loadSubredditSorts();
+    sorts.remove(subreddit.toLowerCase());
+    _saveSubredditSorts(sorts);
   }
 
   void setShowApiUsage(bool v) {

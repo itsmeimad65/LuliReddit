@@ -162,6 +162,9 @@ PostType _detectType(Map<String, dynamic> d, bool isVideo, bool hasGallery) {
       host == 'i.imgur.com') {
     return PostType.image;
   }
+  if (host == 'redgifs.com' || host == 'www.redgifs.com') {
+    return PostType.video;
+  }
   return PostType.link;
 }
 

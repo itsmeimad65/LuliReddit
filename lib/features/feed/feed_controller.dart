@@ -104,7 +104,13 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   @override
   Future<FeedState> build(String arg) async {
     if (!_initialized) {
-      _sort = ref.read(settingsControllerProvider).defaultSort;
+      final s = ref.read(settingsControllerProvider);
+      final notifier = ref.read(settingsControllerProvider.notifier);
+      if (_isFrontpage) {
+        _sort = s.defaultSort;
+      } else {
+        _sort = notifier.getSubredditSort(arg) ?? s.subredditDefaultSort;
+      }
       _initialized = true;
     }
     // Retry once: a cold-start request can fail while the token is being
@@ -127,11 +133,14 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   Future<void> changeSort(PostSort sort, {TopTime? time}) async {
     _sort = sort;
     if (time != null) _time = time;
-    // Persist the frontpage sort + turn off the For You feed.
+    final notifier = ref.read(settingsControllerProvider.notifier);
     if (_isFrontpage) {
-      final s = ref.read(settingsControllerProvider.notifier);
-      s.setDefaultSort(sort);
-      s.setForYouFeed(false);
+      notifier.setDefaultSort(sort);
+      notifier.setForYouFeed(false);
+    } else if (_multi != null) {
+      notifier.setSubredditDefaultSort(sort);
+    } else {
+      notifier.rememberSubredditSort(arg, sort);
     }
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => build(arg));

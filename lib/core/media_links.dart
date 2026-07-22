@@ -22,7 +22,10 @@ bool isImageUrl(Uri u) {
 bool isVideoUrl(Uri u) {
   final p = _path(u);
   if (p.endsWith('.mp4') || p.endsWith('.gifv')) return true;
-  return u.host.toLowerCase() == 'v.redd.it';
+  final host = u.host.toLowerCase();
+  return host == 'v.redd.it' ||
+      host == 'redgifs.com' ||
+      host == 'www.redgifs.com';
 }
 
 bool isMediaUrl(Uri u) => isVideoUrl(u) || isImageUrl(u);

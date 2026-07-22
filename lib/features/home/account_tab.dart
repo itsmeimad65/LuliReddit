@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,15 +39,44 @@ class AccountTab extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: cs.primaryContainer,
-                child: Text(
-                  username.isNotEmpty ? username[0].toUpperCase() : '?',
-                  style: TextStyle(
-                      fontSize: 22,
-                      color: cs.onPrimaryContainer,
-                      fontWeight: FontWeight.bold),
+              ref.watch(currentUserAboutProvider).when(
+                data: (u) => CircleAvatar(
+                  radius: 28,
+                  backgroundColor: cs.primaryContainer,
+                  backgroundImage: u?.iconUrl != null
+                      ? CachedNetworkImageProvider(u!.iconUrl!)
+                      : null,
+                  child: u?.iconUrl == null
+                      ? Text(
+                          username.isNotEmpty ? username[0].toUpperCase() : '?',
+                          style: TextStyle(
+                              fontSize: 22,
+                              color: cs.onPrimaryContainer,
+                              fontWeight: FontWeight.bold),
+                        )
+                      : null,
+                ),
+                loading: () => CircleAvatar(
+                  radius: 28,
+                  backgroundColor: cs.primaryContainer,
+                  child: Text(
+                    username.isNotEmpty ? username[0].toUpperCase() : '?',
+                    style: TextStyle(
+                        fontSize: 22,
+                        color: cs.onPrimaryContainer,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+                error: (_, __) => CircleAvatar(
+                  radius: 28,
+                  backgroundColor: cs.primaryContainer,
+                  child: Text(
+                    username.isNotEmpty ? username[0].toUpperCase() : '?',
+                    style: TextStyle(
+                        fontSize: 22,
+                        color: cs.onPrimaryContainer,
+                        fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),

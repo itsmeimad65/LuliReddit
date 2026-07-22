@@ -1,12 +1,14 @@
 import 'dart:io';
 import 'dart:ui' show lerpDouble;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/providers.dart';
 import '../../core/network/rate_limit.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../auth/auth_controller.dart';
@@ -682,12 +684,28 @@ class _FrontpageTab extends ConsumerWidget {
                   child: CircleAvatar(
                     radius: 22,
                     backgroundColor: cs.primaryContainer,
-                    child: Text(
-                      username.isNotEmpty ? username[0].toUpperCase() : '?',
-                      style: TextStyle(
-                          color: cs.onPrimaryContainer,
-                          fontWeight: FontWeight.bold),
-                    ),
+                    backgroundImage: ref
+                            .watch(currentUserAboutProvider)
+                            .valueOrNull
+                            ?.iconUrl != null
+                        ? CachedNetworkImageProvider(ref
+                            .watch(currentUserAboutProvider)
+                            .valueOrNull!
+                            .iconUrl!)
+                        : null,
+                    child: ref
+                            .watch(currentUserAboutProvider)
+                            .valueOrNull
+                            ?.iconUrl != null
+                        ? null
+                        : Text(
+                            username.isNotEmpty
+                                ? username[0].toUpperCase()
+                                : '?',
+                            style: TextStyle(
+                                color: cs.onPrimaryContainer,
+                                fontWeight: FontWeight.bold),
+                          ),
                   ),
                 ),
               ),
@@ -817,14 +835,28 @@ Future<void> _showFloatingToolbar(
                         child: CircleAvatar(
                           radius: 20,
                           backgroundColor: cs.primaryContainer,
-                          child: Text(
-                            username.isNotEmpty
-                                ? username[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                                color: cs.onPrimaryContainer,
-                                fontWeight: FontWeight.bold),
-                          ),
+                          backgroundImage: ref
+                                  .watch(currentUserAboutProvider)
+                                  .valueOrNull
+                                  ?.iconUrl != null
+                              ? CachedNetworkImageProvider(ref
+                                  .watch(currentUserAboutProvider)
+                                  .valueOrNull!
+                                  .iconUrl!)
+                              : null,
+                          child: ref
+                                  .watch(currentUserAboutProvider)
+                                  .valueOrNull
+                                  ?.iconUrl != null
+                              ? null
+                              : Text(
+                                  username.isNotEmpty
+                                      ? username[0].toUpperCase()
+                                      : '?',
+                                  style: TextStyle(
+                                      color: cs.onPrimaryContainer,
+                                      fontWeight: FontWeight.bold),
+                                ),
                         ),
                       ),
                     ),
