@@ -12,6 +12,7 @@ import '../../models/post.dart';
 import '../../models/reddit_user.dart';
 import '../../models/subreddit.dart';
 import '../feed/post_card.dart';
+import 'recent_visits_store.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key, this.initialSubreddit, this.initialQuery});
@@ -311,7 +312,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _empty(ColorScheme cs) {
-    if (_recent.isEmpty) {
+    final recentSubs = ref.watch(recentSubredditsProvider);
+    final recentUsers = ref.watch(recentUsersProvider);
+    final hasRecent = recentSubs.isNotEmpty || recentUsers.isNotEmpty || _recent.isNotEmpty;
+    if (!hasRecent) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -327,6 +331,62 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return ListView(
       padding: const EdgeInsets.only(top: 8, bottom: 130),
       children: [
+        if (recentSubs.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
+            child: Text('Recent subreddits',
+                style: TextStyle(
+                    color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
+          ),
+          for (final name in recentSubs)
+            ListTile(
+              leading: CircleAvatar(
+                radius: 14,
+                backgroundColor: cs.secondaryContainer,
+                child: Text(name[0].toUpperCase(),
+                    style: TextStyle(
+                        color: cs.onSecondaryContainer,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold)),
+              ),
+              title: Text('r/$name'),
+              trailing: IconButton(
+                icon: const Icon(Icons.close_rounded, size: 18),
+                tooltip: 'Remove',
+                onPressed: () =>
+                    ref.read(recentSubredditsProvider.notifier).remove(name),
+              ),
+              onTap: () => context.push('/r/$name'),
+            ),
+        ],
+        if (recentUsers.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
+            child: Text('Recent users',
+                style: TextStyle(
+                    color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
+          ),
+          for (final name in recentUsers)
+            ListTile(
+              leading: CircleAvatar(
+                radius: 14,
+                backgroundColor: cs.tertiaryContainer,
+                child: Text(name[0].toUpperCase(),
+                    style: TextStyle(
+                        color: cs.onTertiaryContainer,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold)),
+              ),
+              title: Text('u/$name'),
+              trailing: IconButton(
+                icon: const Icon(Icons.close_rounded, size: 18),
+                tooltip: 'Remove',
+                onPressed: () =>
+                    ref.read(recentUsersProvider.notifier).remove(name),
+              ),
+              onTap: () => context.push('/u/$name'),
+            ),
+        ],
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
           child: Row(

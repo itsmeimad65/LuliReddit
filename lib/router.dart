@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/route_observer.dart';
 import 'features/auth/auth_controller.dart';
+import 'features/search/recent_visits_store.dart';
 import 'features/settings/settings_controller.dart' show sharedPrefsProvider;
 import 'features/auth/login_screen.dart';
 import 'features/compose/compose_post_screen.dart';
@@ -31,7 +32,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.listen(authControllerProvider, (_, __) => refresh.value++);
   ref.onDispose(refresh.dispose);
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: '/',
     refreshListenable: refresh,
     observers: [appRouteObserver],
@@ -140,4 +141,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+
+  // Track subreddit and user profile visits for the search screen.
+  void _onRouteChanged() {
+    final path = router.routeInformationProvider.value.uri.path;
+    final subMatch = RegExp(r'^/r/(\w+)$').firstMatch(path);
+    if (subMatch != null) {
+      ref.read(recentSubredditsProvider.notifier).visit(subMatch.group(1)!);
+    }
+    final userMatch = RegExp(r'^/u/(\w+)$').firstMatch(path);
+    if (userMatch != null) {
+      ref.read(recentUsersProvider.notifier).visit(userMatch.group(1)!);
+    }
+  }
+  router.routeInformationProvider.addListener(_onRouteChanged);
+  ref.onDispose(() => router.routeInformationProvider.removeListener(_onRouteChanged));
+
+  return router;
 });
