@@ -333,59 +333,59 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       children: [
         if (recentSubs.isNotEmpty) ...[
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
-            child: Text('Recent subreddits',
-                style: TextStyle(
-                    color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
-          ),
-          for (final name in recentSubs)
-            ListTile(
-              leading: CircleAvatar(
-                radius: 14,
-                backgroundColor: cs.secondaryContainer,
-                child: Text(name[0].toUpperCase(),
+            padding: const EdgeInsets.fromLTRB(16, 8, 8, 2),
+            child: Row(
+              children: [
+                Text('Recent subreddits',
                     style: TextStyle(
-                        color: cs.onSecondaryContainer,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold)),
-              ),
-              title: Text('r/$name'),
-              trailing: IconButton(
-                icon: const Icon(Icons.close_rounded, size: 18),
-                tooltip: 'Remove',
-                onPressed: () =>
-                    ref.read(recentSubredditsProvider.notifier).remove(name),
-              ),
-              onTap: () => context.push('/r/$name'),
+                        color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                TextButton(
+                  onPressed: () =>
+                      ref.read(recentSubredditsProvider.notifier).clear(),
+                  child: const Text('Clear'),
+                ),
+              ],
             ),
+          ),
+          SizedBox(
+            height: 48,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: recentSubs.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) => _RecentSubredditChip(name: recentSubs[i]),
+            ),
+          ),
         ],
         if (recentUsers.isNotEmpty) ...[
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
-            child: Text('Recent users',
-                style: TextStyle(
-                    color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
-          ),
-          for (final name in recentUsers)
-            ListTile(
-              leading: CircleAvatar(
-                radius: 14,
-                backgroundColor: cs.tertiaryContainer,
-                child: Text(name[0].toUpperCase(),
+            padding: const EdgeInsets.fromLTRB(16, 8, 8, 2),
+            child: Row(
+              children: [
+                Text('Recent users',
                     style: TextStyle(
-                        color: cs.onTertiaryContainer,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold)),
-              ),
-              title: Text('u/$name'),
-              trailing: IconButton(
-                icon: const Icon(Icons.close_rounded, size: 18),
-                tooltip: 'Remove',
-                onPressed: () =>
-                    ref.read(recentUsersProvider.notifier).remove(name),
-              ),
-              onTap: () => context.push('/u/$name'),
+                        color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                TextButton(
+                  onPressed: () =>
+                      ref.read(recentUsersProvider.notifier).clear(),
+                  child: const Text('Clear'),
+                ),
+              ],
             ),
+          ),
+          SizedBox(
+            height: 48,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: recentUsers.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) => _RecentUserChip(name: recentUsers[i]),
+            ),
+          ),
         ],
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
@@ -671,6 +671,66 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               );
             },
           ),
+     );
+  }
+}
+
+class _RecentSubredditChip extends ConsumerWidget {
+  const _RecentSubredditChip({required this.name});
+  final String name;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final iconUrl = ref.watch(subredditIconProvider)[name];
+    if (iconUrl == null) ref.watch(subredditIconAboutProvider(name));
+    return ActionChip(
+      avatar: CircleAvatar(
+        radius: 12,
+        backgroundColor: cs.secondaryContainer,
+        backgroundImage: iconUrl != null
+            ? CachedNetworkImageProvider(iconUrl)
+            : null,
+        child: iconUrl == null
+            ? Text(name[0].toUpperCase(),
+                style: TextStyle(
+                    color: cs.onSecondaryContainer,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold))
+            : null,
+      ),
+      label: Text('r/$name', style: const TextStyle(fontSize: 13)),
+      onPressed: () => context.push('/r/$name'),
+    );
+  }
+}
+
+class _RecentUserChip extends ConsumerWidget {
+  const _RecentUserChip({required this.name});
+  final String name;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final iconUrl = ref.watch(userIconProvider)[name];
+    if (iconUrl == null) ref.watch(userAboutProvider(name));
+    return ActionChip(
+      avatar: CircleAvatar(
+        radius: 12,
+        backgroundColor: cs.tertiaryContainer,
+        backgroundImage: iconUrl != null
+            ? CachedNetworkImageProvider(iconUrl)
+            : null,
+        child: iconUrl == null
+            ? Text(name[0].toUpperCase(),
+                style: TextStyle(
+                    color: cs.onTertiaryContainer,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold))
+            : null,
+      ),
+      label: Text('u/$name', style: const TextStyle(fontSize: 13)),
+      onPressed: () => context.push('/u/$name'),
     );
   }
 }
