@@ -128,7 +128,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     setState(() => _autocomplete = []);
     if (saveRecent) {
       final isPostsTab = _scopeSubreddit != null ||
-          DefaultTabController.of(context)?.index == 0;
+          DefaultTabController.maybeOf(context)?.index == 0;
       if (isPostsTab) _saveRecent(q);
     }
     setState(() {

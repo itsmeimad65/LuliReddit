@@ -841,7 +841,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               GestureDetector(
                 onTap: () => context.push('/r/${p.subreddit}'),
