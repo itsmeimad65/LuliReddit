@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' show lerpDouble;
 
@@ -37,14 +38,24 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   int _index = 0;
 
   bool _chrome = true;
+  Timer? _badgeTimer;
 
   @override
   void initState() {
     super.initState();
+    _badgeTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+      if (mounted) ref.invalidate(unreadCountProvider);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _maybeCheckUpdates();
       if (mounted) await _maybeSuggestNotifications();
     });
+  }
+
+  @override
+  void dispose() {
+    _badgeTimer?.cancel();
+    super.dispose();
   }
 
   /// One-time, opt-in suggestion to enable inbox notifications (shown on an

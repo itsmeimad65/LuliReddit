@@ -468,6 +468,7 @@ class _PostCardState extends ConsumerState<PostCard> {
         padding: const EdgeInsets.only(bottom: 4),
         child: NsfwBlur(
           blur: blur,
+          isSpoiler: p.spoiler,
           child: GalleryCarousel(
               images: p.gallery, title: p.title, height: height),
         ),
@@ -479,6 +480,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       padding: const EdgeInsets.only(bottom: 4),
       child: NsfwBlur(
         blur: blur,
+        isSpoiler: p.spoiler,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: GestureDetector(
@@ -646,6 +648,19 @@ class _PostCardState extends ConsumerState<PostCard> {
                     fontWeight: FontWeight.bold,
                     color: cs.onErrorContainer)),
           ),
+        if (p.spoiler && !p.over18)
+          Container(
+            margin: const EdgeInsets.only(left: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+                color: cs.tertiaryContainer,
+                borderRadius: BorderRadius.circular(6)),
+            child: Text('SPOILER',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: cs.onTertiaryContainer)),
+          ),
       ],
     );
   }
@@ -669,15 +684,16 @@ class _PostCardState extends ConsumerState<PostCard> {
             padding: const EdgeInsets.only(bottom: 4),
             child: NsfwBlur(
               blur: blur,
+              isSpoiler: p.spoiler,
               child: GalleryCarousel(images: p.gallery, title: p.title),
             ),
           );
         }
-        return NsfwBlur(blur: blur, child: _mediaPreview(cs));
+        return NsfwBlur(blur: blur, isSpoiler: p.spoiler, child: _mediaPreview(cs));
       case PostType.image:
       case PostType.gif:
       case PostType.video:
-        return NsfwBlur(blur: blur, child: _mediaPreview(cs));
+        return NsfwBlur(blur: blur, isSpoiler: p.spoiler, child: _mediaPreview(cs));
       case PostType.link:
         return _linkPreview(cs);
       case PostType.self:

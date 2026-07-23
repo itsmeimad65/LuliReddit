@@ -1003,6 +1003,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
         padding: const EdgeInsets.only(bottom: 12),
         child: NsfwBlur(
           blur: blur,
+          isSpoiler: p.spoiler,
           child: GalleryCarousel(images: p.gallery, title: p.title),
         ),
       );
@@ -1029,6 +1030,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
       padding: const EdgeInsets.only(bottom: 12),
       child: NsfwBlur(
         blur: blur,
+        isSpoiler: p.spoiler,
         child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: GestureDetector(

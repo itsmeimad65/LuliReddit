@@ -126,11 +126,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (_controller.text != q) _controller.text = q;
     FocusScope.of(context).unfocus();
     setState(() => _autocomplete = []);
-    if (saveRecent) {
-      final isPostsTab = _scopeSubreddit != null ||
-          DefaultTabController.maybeOf(context)?.index == 0;
-      if (isPostsTab) _saveRecent(q);
-    }
+    if (saveRecent) _saveRecent(q);
     setState(() {
       _loading = true;
       _query = q;
@@ -239,6 +235,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             ),
           ),
+          actions: [
+            if (_query.isNotEmpty)
+              IconButton(
+                icon: Icon(
+                  ref.watch(savedSearchesProvider).contains(_query)
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded,
+                ),
+                tooltip: ref.watch(savedSearchesProvider).contains(_query)
+                    ? 'Unsave search'
+                    : 'Save search',
+                onPressed: () =>
+                    ref.read(savedSearchesProvider.notifier).toggle(_query),
+              ),
+          ],
           bottom: restricted
               ? null
               : const TabBar(tabs: [
@@ -318,7 +329,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget _empty(ColorScheme cs) {
     final recentSubs = ref.watch(recentSubredditsProvider);
     final recentUsers = ref.watch(recentUsersProvider);
-    final hasRecent = recentSubs.isNotEmpty || recentUsers.isNotEmpty || _recent.isNotEmpty;
+    final savedSearches = ref.watch(savedSearchesProvider);
+    final hasRecent = recentSubs.isNotEmpty || recentUsers.isNotEmpty || _recent.isNotEmpty || savedSearches.isNotEmpty;
     if (!hasRecent) {
       return Center(
         child: Column(
@@ -390,6 +402,45 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               itemBuilder: (_, i) => _RecentUserChip(name: recentUsers[i]),
             ),
           ),
+        ],
+        if (savedSearches.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+            child: Row(
+              children: [
+                Icon(Icons.bookmark_rounded, size: 16, color: cs.onSurfaceVariant),
+                const SizedBox(width: 6),
+                Text('Saved searches',
+                    style: TextStyle(
+                        color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          for (final q in savedSearches)
+            ListTile(
+              leading: const Icon(Icons.bookmark_rounded),
+              title: Text(q),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.north_west_rounded, size: 18),
+                    tooltip: 'Search',
+                    onPressed: () {
+                      _controller.text = q;
+                      _search(q, saveRecent: false);
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.bookmark_remove_rounded, size: 18),
+                    tooltip: 'Unsave',
+                    onPressed: () =>
+                        ref.read(savedSearchesProvider.notifier).unsave(q),
+                  ),
+                ],
+              ),
+              onTap: () => _search(q),
+            ),
         ],
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
